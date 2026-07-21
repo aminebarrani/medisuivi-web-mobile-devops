@@ -1,0 +1,54 @@
+server:
+  port: 8222
+
+spring:
+  cloud:
+    gateway:
+      globalcors:
+        corsConfigurations:
+          '[/**]':
+            allowedOriginPatterns:
+              - "http://localhost:*"
+              - "http://127.0.0.1:*"
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - OPTIONS
+            allowedHeaders: "*"
+            allowCredentials: true
+      discovery:
+        locator:
+          enabled: true
+      routes:
+        # User Service (Auth / Users / Roles)
+        - id: user-service-route
+          uri: lb://user-service
+          predicates:
+            - Path=/api/users/**, /api/auth/**
+          filters:
+            - RewritePath=/api/(?<segment>.*), /${segment}
+
+        # Patient Service (Profiles, Medical Data, Illness)
+        - id: patient-service-route
+          uri: lb://patient-service
+          predicates:
+            - Path=/api/patients/**, /api/maladies/**
+          filters:
+            - RewritePath=/api/(?<segment>.*), /${segment}
+
+        # Mesures & Alertes Service (Health Measures, Automatic Alerts)
+        - id: mesures-alertes-service-route
+          uri: lb://mesures-alertes-service
+          predicates:
+            - Path=/api/mesures/**, /api/alertes/**
+          filters:
+            - RewritePath=/api/(?<segment>.*), /${segment}
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+  instance:
+    prefer-ip-address: true

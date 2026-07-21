@@ -1,0 +1,142 @@
+package tn.esprit.user.service;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import tn.esprit.user.dto.AuthResponseDTO;
+import tn.esprit.user.dto.LoginRequestDTO;
+import tn.esprit.user.dto.UserCreationDTO;
+import tn.esprit.user.dto.UserDTO;
+import tn.esprit.user.model.User;
+import tn.esprit.user.repository.UserRepository;
+import tn.esprit.user.security.JwtUtils;
+
+import java.util.List;
+import java.util.stream.Collectors;
+
+@Service
+@Transactional
+public class UserServiceImpl implements UserService {
+
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final JwtUtils jwtUtils;
+
+    @Autowired
+    public UserServiceImpl(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtUtils jwtUtils) {
+        this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
+        this.jwtUtils = jwtUtils;
+    }
+
+    @Override
+    public UserDTO createUser(UserCreationDTO creationDTO) {
+        if (userRepository.existsByUsername(creationDTO.getUsername())) {
+            throw new IllegalArgumentException("Username is already taken");
+        }
+        if (userRepository.existsByEmail(creationDTO.getEmail())) {
+            throw new IllegalArgumentException("Email is already registered");
+        }
+
+        User user = User.builder()
+                .username(creationDTO.getUsername())
+                .email(creationDTO.getEmail())
+                .password(passwordEncoder.encode(creationDTO.getPassword()))
+                .firstName(creationDTO.getFirstName())
+                .lastName(creationDTO.getLastName())
+                .role(creationDTO.getRole())
+                .phone(creationDTO.getPhone())
+                .active(creationDTO.isActive())
+                .build();
+
+        User savedUser = userRepository.save(user);
+        return mapToDTO(savedUser);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public AuthResponseDTO login(LoginRequestDTO loginRequest) {
+        String input = loginRequest.getUsernameOrEmail();
+        User user = userRepository.findByUsername(input)
+                .or(() -> userRepository.findByEmail(input))
+                .orElseThrow(() -> new IllegalArgumentException("Invalid username/email or password"));
+
+        if (!passwordEncoder.matches(loginRequest.getPassword(), user.getPassword())) {
+            throw new IllegalArgumentException("Invalid username/email or password");
+        }
+
+        if (!user.isActive()) {
+            throw new IllegalStateException("Account is inactive");
+        }
+
+        String token = jwtUtils.generateToken(user.getUsername(), user.getRole().name(), user.getId());
+
+        return AuthResponseDTO.builder()
+                .token(token)
+                .tokenType("Bearer")
+                .user(mapToDTO(user))
+                .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public UserDTO getUserById(Long id) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("User not found with id: " + id));
+        return mapToDTO(user);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<UserDTO> getAllUsers() {
+        return userRepository.findAll().stream()
+                .map(this::mapToDTO)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public UserDTO updateUser(Long id, UserDTO updateDTO) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("User not found with id: " + id));
+
+        if (!user.getUsername().equals(updateDTO.getUsername()) && userRepository.existsByUsername(updateDTO.getUsername())) {
+            throw new IllegalArgumentException("Username is already taken");
+        }
+        if (!user.getEmail().equals(updateDTO.getEmail()) && userRepository.existsByEmail(updateDTO.getEmail())) {
+            throw new IllegalArgumentException("Email is already registered");
+        }
+
+        user.setUsername(updateDTO.getUsername());
+        user.setEmail(updateDTO.getEmail());
+        user.setFirstName(updateDTO.getFirstName());
+        user.setLastName(updateDTO.getLastName());
+        user.setRole(updateDTO.getRole());
+        user.setPhone(updateDTO.getPhone());
+        user.setActive(updateDTO.isActive());
+
+        User updatedUser = userRepository.save(user);
+        return mapToDTO(updatedUser);
+    }
+
+    @Override
+    public void deleteUser(Long id) {
+        if (!userRepository.existsById(id)) {
+            throw new RuntimeException("User not found with id: " + id);
+        }
+        userRepository.deleteById(id);
+    }
+
+    private UserDTO mapToDTO(User user) {
+        return UserDTO.builder()
+                .id(user.getId())
+                .username(user.getUsername())
+                .email(user.getEmail())
+                .firstName(user.getFirstName())
+                .lastName(user.getLastName())
+                .role(user.getRole())
+                .phone(user.getPhone())
+                .active(user.isActive())
+                .build();
+    }
+}
