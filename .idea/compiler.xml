@@ -8,11 +8,12 @@
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />
         <module name="config-server" />
-        <module name="user-service" />
         <module name="Gestion_Planning" />
         <module name="discovery" />
-        <module name="gateway" />
         <module name="userservice" />
+        <module name="patient-service" />
+        <module name="user-service" />
+        <module name="gateway" />
       </profile>
       <profile name="Annotation profile for GestionGroupeChat" enabled="true">
         <sourceOutputDir name="target/generated-sources/annotations" />
@@ -71,6 +72,7 @@
       <module name="discovery" options="-parameters" />
       <module name="gateway" options="-parameters" />
       <module name="lessonsService" options="-parameters" />
+      <module name="patient-service" options="-parameters" />
       <module name="product-service" options="-parameters" />
       <module name="recrutement-service" options="-parameters" />
       <module name="todomodule" options="-parameters" />

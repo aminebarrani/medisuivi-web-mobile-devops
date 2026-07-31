@@ -1,0 +1,96 @@
+package tn.esprit.patient.service;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import tn.esprit.patient.dto.MesureCreationDTO;
+import tn.esprit.patient.dto.MesureDTO;
+import tn.esprit.patient.exception.ResourceNotFoundException;
+import tn.esprit.patient.model.Mesure;
+import tn.esprit.patient.model.Patient;
+import tn.esprit.patient.repository.MesureRepository;
+import tn.esprit.patient.repository.PatientRepository;
+
+import java.util.List;
+
+@Service
+@Transactional
+public class MesureServiceImpl implements MesureService {
+
+    private final MesureRepository mesureRepository;
+    private final PatientRepository patientRepository;
+
+    public MesureServiceImpl(MesureRepository mesureRepository, PatientRepository patientRepository) {
+        this.mesureRepository = mesureRepository;
+        this.patientRepository = patientRepository;
+    }
+
+    @Override
+    public MesureDTO create(MesureCreationDTO dto) {
+        if (!patientRepository.existsById(dto.getPatientId())) {
+            throw new ResourceNotFoundException("Patient not found with id: " + dto.getPatientId());
+        }
+
+        Mesure mesure = Mesure.builder()
+                .patientId(dto.getPatientId())
+                .typeMesure(dto.getTypeMesure())
+                .valeur(dto.getValeur())
+                .unite(dto.getUnite())
+                .source(dto.getSource())
+                .build();
+
+        return mapToDTO(mesureRepository.save(mesure));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public MesureDTO getById(Long id) {
+        Mesure mesure = mesureRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Mesure not found with id: " + id));
+        return mapToDTO(mesure);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<MesureDTO> getByPatientId(Long patientId) {
+        if (!patientRepository.existsById(patientId)) {
+            throw new ResourceNotFoundException("Patient not found with id: " + patientId);
+        }
+        return mesureRepository.findByPatientIdOrderByDateMesureDesc(patientId).stream()
+                .map(this::mapToDTO)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<MesureDTO> getByMedecinId(Long medecinId) {
+        List<Long> patientIds = patientRepository.findByMedecinId(medecinId).stream()
+                .map(Patient::getId)
+                .toList();
+        if (patientIds.isEmpty()) {
+            return List.of();
+        }
+        return mesureRepository.findByPatientIdInOrderByDateMesureDesc(patientIds).stream()
+                .map(this::mapToDTO)
+                .toList();
+    }
+
+    @Override
+    public void delete(Long id) {
+        if (!mesureRepository.existsById(id)) {
+            throw new ResourceNotFoundException("Mesure not found with id: " + id);
+        }
+        mesureRepository.deleteById(id);
+    }
+
+    private MesureDTO mapToDTO(Mesure mesure) {
+        return MesureDTO.builder()
+                .id(mesure.getId())
+                .patientId(mesure.getPatientId())
+                .typeMesure(mesure.getTypeMesure())
+                .valeur(mesure.getValeur())
+                .unite(mesure.getUnite())
+                .source(mesure.getSource())
+                .dateMesure(mesure.getDateMesure())
+                .build();
+    }
+}

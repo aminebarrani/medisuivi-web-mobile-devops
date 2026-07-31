@@ -14,6 +14,7 @@
         <module>discovery</module>
         <module>gateway</module>
         <module>user-service</module>
+        <module>patient-service</module>
     </modules>
 
 </project>

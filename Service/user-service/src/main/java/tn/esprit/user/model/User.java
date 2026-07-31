@@ -3,6 +3,8 @@ package tn.esprit.user.model;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.LocalDateTime;
+
 @Entity
 @Table(name = "users")
 @Getter
@@ -35,4 +37,8 @@ public class User {
     private String phone;
 
     private boolean active;
+
+    private String resetToken;
+
+    private LocalDateTime resetTokenExpiry;
 }

@@ -12,6 +12,10 @@ import tn.esprit.user.model.User;
 import tn.esprit.user.repository.UserRepository;
 import tn.esprit.user.security.JwtUtils;
 
+import tn.esprit.user.dto.ForgotPasswordRequestDTO;
+import tn.esprit.user.dto.ResetPasswordRequestDTO;
+import java.time.LocalDateTime;
+import java.util.Random;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -22,12 +26,14 @@ public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtils jwtUtils;
+    private final EmailService emailService;
 
     @Autowired
-    public UserServiceImpl(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtUtils jwtUtils) {
+    public UserServiceImpl(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtUtils jwtUtils, EmailService emailService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtils = jwtUtils;
+        this.emailService = emailService;
     }
 
     @Override
@@ -125,6 +131,34 @@ public class UserServiceImpl implements UserService {
             throw new RuntimeException("User not found with id: " + id);
         }
         userRepository.deleteById(id);
+    }
+
+    @Override
+    public void processForgotPassword(ForgotPasswordRequestDTO requestDTO) {
+        User user = userRepository.findByEmail(requestDTO.getEmail())
+                .orElseThrow(() -> new IllegalArgumentException("Aucun utilisateur trouvé avec cet e-mail"));
+
+        String resetCode = String.format("%06d", new Random().nextInt(900000) + 100000);
+        user.setResetToken(resetCode);
+        user.setResetTokenExpiry(LocalDateTime.now().plusMinutes(15));
+        userRepository.save(user);
+
+        emailService.sendPasswordResetEmail(user.getEmail(), resetCode);
+    }
+
+    @Override
+    public void resetPassword(ResetPasswordRequestDTO requestDTO) {
+        User user = userRepository.findByResetToken(requestDTO.getToken())
+                .orElseThrow(() -> new IllegalArgumentException("Code de réinitialisation invalide ou introuvable."));
+
+        if (user.getResetTokenExpiry() == null || user.getResetTokenExpiry().isBefore(LocalDateTime.now())) {
+            throw new IllegalArgumentException("Le code de réinitialisation a expiré. Veuillez en demander un nouveau.");
+        }
+
+        user.setPassword(passwordEncoder.encode(requestDTO.getNewPassword()));
+        user.setResetToken(null);
+        user.setResetTokenExpiry(null);
+        userRepository.save(user);
     }
 
     private UserDTO mapToDTO(User user) {

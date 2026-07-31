@@ -1,0 +1,8 @@
+# Copy to application-local.yml and set your Mailtrap password (not committed to git).
+# spring:
+#   mail:
+#     password: your-mailtrap-password-here
+#
+# medsuivi:
+#   frontend:
+#     url: http://localhost:5174
