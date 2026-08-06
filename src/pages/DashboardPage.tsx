@@ -41,6 +41,8 @@ const DashboardPage: React.FC = () => {
   const [showAddMesureModal, setShowAddMesureModal] = useState(false);
   const [showAddSymptomeModal, setShowAddSymptomeModal] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState<PatientDTO | null>(null);
+  const [predictingRisk, setPredictingRisk] = useState(false);
+  const [predictionResult, setPredictionResult] = useState<{ gravite: string; probabilities: Record<string, number> } | null>(null);
 
   // Forms
   const [newPatientForm, setNewPatientForm] = useState({
@@ -378,6 +380,29 @@ const DashboardPage: React.FC = () => {
       // fallback
     }
     setPatients(patients.map((p) => (p.id === patientId ? { ...p, niveauRisque: risk } : p)));
+  };
+
+  const handlePredictRisk = async (patientId: number) => {
+    setPredictingRisk(true);
+    setPredictionResult(null);
+    try {
+      const res = await patientService.predictRisk(patientId);
+      setPredictionResult(res);
+      // Map gravity response to local NiveauRisque
+      const mappedRisk = (res.gravite === 'GRAVE' ? 'ELEVE' : res.gravite) as NiveauRisque;
+      
+      setPatients((prev) =>
+        prev.map((p) => (p.id === patientId ? { ...p, niveauRisque: mappedRisk } : p))
+      );
+      setSelectedPatient((prev) =>
+        prev && prev.id === patientId ? { ...prev, niveauRisque: mappedRisk } : prev
+      );
+    } catch (err) {
+      console.error("Error predicting risk:", err);
+      alert("Erreur lors de la prédiction de risque ML. Assurez-vous que le serveur de prédiction FastAPI et le patient-service sont démarrés.");
+    } finally {
+      setPredictingRisk(false);
+    }
   };
 
   // Filtered patients
@@ -1809,7 +1834,7 @@ const DashboardPage: React.FC = () => {
                 <p className="text-xs text-slate-400">Dossier médical électronique</p>
               </div>
               <button
-                onClick={() => setSelectedPatient(null)}
+                onClick={() => { setSelectedPatient(null); setPredictionResult(null); }}
                 className="text-slate-400 hover:text-white text-lg font-bold"
               >
                 ✕
@@ -1834,16 +1859,78 @@ const DashboardPage: React.FC = () => {
                 <span className="font-semibold text-white">{selectedPatient.sexe}</span>
               </div>
               <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 col-span-2">
-                <span className="text-xs text-slate-500 block">Niveau de Risque Acutuel</span>
+                <span className="text-xs text-slate-500 block">Niveau de Risque Actuel</span>
                 <span className={`text-xs px-3 py-1 rounded-full border font-bold inline-block mt-1 ${riskBadgeClass(selectedPatient.niveauRisque)}`}>
                   {selectedPatient.niveauRisque}
                 </span>
               </div>
             </div>
 
+            {/* ML Predict risk section */}
+            <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-sm font-bold text-teal-400">Score de Risque ML (Random Forest)</h4>
+                  <p className="text-xs text-slate-500">Calcul basé sur les mesures des 14j et les symptômes</p>
+                </div>
+                <button
+                  type="button"
+                  disabled={predictingRisk}
+                  onClick={() => handlePredictRisk(selectedPatient.id)}
+                  className="bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-lg shadow-teal-500/20 disabled:opacity-50 transition-all"
+                >
+                  {predictingRisk ? (
+                    <span className="flex items-center gap-1">
+                      <span className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin inline-block" />
+                      Calcul...
+                    </span>
+                  ) : "⚡ Prédire le Risque"}
+                </button>
+              </div>
+
+              {predictionResult && (
+                <div className="pt-2 border-t border-slate-800/80 space-y-3">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-slate-400 font-semibold">Gravité prédite :</span>
+                    <span className={`text-xs px-3 py-1 rounded-full border font-bold ${
+                      predictionResult.gravite === 'GRAVE' ? 'bg-rose-500/10 text-rose-400 border-rose-500/30' :
+                      predictionResult.gravite === 'MODERE' ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' :
+                      'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                    }`}>
+                      {predictionResult.gravite}
+                    </span>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-semibold text-slate-400">Probabilités par classe :</p>
+                    {Object.entries(predictionResult.probabilities).map(([key, val]) => (
+                      <div key={key} className="flex items-center justify-between text-xs">
+                        <span className="text-slate-500 font-mono">{key} :</span>
+                        <div className="flex items-center gap-3 w-2/3">
+                          <div className="w-full bg-slate-900 rounded-full h-1.5 overflow-hidden border border-slate-800">
+                            <div
+                              className={`h-full rounded-full ${
+                                key === 'GRAVE' ? 'bg-rose-500' :
+                                key === 'MODERE' ? 'bg-amber-500' :
+                                'bg-emerald-500'
+                              }`}
+                              style={{ width: `${val * 100}%` }}
+                            />
+                          </div>
+                          <span className="text-slate-300 font-mono w-10 text-right">
+                            {Math.round(val * 100)}%
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className="flex justify-end border-t border-slate-800 pt-4">
               <button
-                onClick={() => setSelectedPatient(null)}
+                onClick={() => { setSelectedPatient(null); setPredictionResult(null); }}
                 className="bg-slate-800 hover:bg-slate-700 text-white font-semibold px-5 py-2 rounded-xl text-sm"
               >
                 Fermer

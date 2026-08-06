@@ -58,7 +58,7 @@ const authService = {
     return response.data;
   },
 
-  async updateProfile(data: Partial<Pick<UserDTO, 'firstName' | 'lastName' | 'phone'>>): Promise<UserDTO> {
+  async updateProfile(data: Partial<Pick<UserDTO, 'firstName' | 'lastName' | 'phone' | 'profilePictureUrl'>>): Promise<UserDTO> {
     const currentUser = this.getUser();
     if (!currentUser) throw new Error('No user in session');
 
@@ -70,6 +70,7 @@ const authService = {
       firstName: data.firstName ?? currentUser.firstName,
       lastName: data.lastName ?? currentUser.lastName,
       phone: data.phone ?? currentUser.phone,
+      profilePictureUrl: data.profilePictureUrl ?? currentUser.profilePictureUrl,
       role: currentUser.role,
       active: currentUser.active,
     };
@@ -77,6 +78,18 @@ const authService = {
     const response = await axiosInstance.put<UserDTO>(`/users/${currentUser.id}`, payload);
     const updated = response.data;
     localStorage.setItem('user', JSON.stringify(updated));
+    return updated;
+  },
+
+  async updateProfilePicture(base64DataUrl: string): Promise<UserDTO> {
+    const updated = await this.updateProfile({ profilePictureUrl: base64DataUrl });
+    localStorage.setItem('profilePicture', base64DataUrl);
+    return updated;
+  },
+
+  async removeProfilePicture(): Promise<UserDTO> {
+    const updated = await this.updateProfile({ profilePictureUrl: '' });
+    localStorage.removeItem('profilePicture');
     return updated;
   },
 
@@ -96,7 +109,8 @@ const authService = {
   },
 
   getLocalProfilePicture(): string | null {
-    return localStorage.getItem('profilePicture');
+    const user = this.getUser();
+    return user?.profilePictureUrl || localStorage.getItem('profilePicture');
   },
 
   removeLocalProfilePicture(): void {
@@ -106,8 +120,7 @@ const authService = {
   logout(): void {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-    // Keep profile picture across sessions — remove only if desired
-    // localStorage.removeItem('profilePicture');
+    localStorage.removeItem('profilePicture');
   },
 
   getToken(): string | null {
