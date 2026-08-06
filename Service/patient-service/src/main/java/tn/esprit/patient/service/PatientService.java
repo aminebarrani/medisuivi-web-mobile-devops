@@ -4,6 +4,7 @@ import tn.esprit.patient.dto.PatientCreationDTO;
 import tn.esprit.patient.dto.PatientDTO;
 import tn.esprit.patient.model.NiveauRisque;
 
+import tn.esprit.patient.dto.PredictResponseDTO;
 import java.util.List;
 
 public interface PatientService {
@@ -15,4 +16,6 @@ public interface PatientService {
     PatientDTO update(Long id, PatientDTO dto);
     PatientDTO updateNiveauRisque(Long id, NiveauRisque niveauRisque);
     void delete(Long id);
+    PredictResponseDTO predictPatientRisk(Long id);
 }
+

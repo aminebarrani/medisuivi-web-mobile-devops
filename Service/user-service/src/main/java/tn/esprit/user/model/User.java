@@ -36,6 +36,9 @@ public class User {
 
     private String phone;
 
+    @Column(columnDefinition = "TEXT")
+    private String profilePictureUrl;
+
     private boolean active;
 
     private String resetToken;

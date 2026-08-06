@@ -119,6 +119,7 @@ public class UserServiceImpl implements UserService {
         user.setLastName(updateDTO.getLastName());
         user.setRole(updateDTO.getRole());
         user.setPhone(updateDTO.getPhone());
+        user.setProfilePictureUrl(updateDTO.getProfilePictureUrl());
         user.setActive(updateDTO.isActive());
 
         User updatedUser = userRepository.save(user);
@@ -170,6 +171,7 @@ public class UserServiceImpl implements UserService {
                 .lastName(user.getLastName())
                 .role(user.getRole())
                 .phone(user.getPhone())
+                .profilePictureUrl(user.getProfilePictureUrl())
                 .active(user.isActive())
                 .build();
     }

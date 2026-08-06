@@ -10,6 +10,7 @@ import tn.esprit.patient.model.Patient;
 import tn.esprit.patient.repository.MedecinRepository;
 import tn.esprit.patient.repository.PatientRepository;
 
+import tn.esprit.patient.dto.PredictResponseDTO;
 import java.util.List;
 
 @Service
@@ -18,10 +19,14 @@ public class PatientServiceImpl implements PatientService {
 
     private final PatientRepository patientRepository;
     private final MedecinRepository medecinRepository;
+    private final PredictServiceClient predictServiceClient;
 
-    public PatientServiceImpl(PatientRepository patientRepository, MedecinRepository medecinRepository) {
+    public PatientServiceImpl(PatientRepository patientRepository,
+                              MedecinRepository medecinRepository,
+                              PredictServiceClient predictServiceClient) {
         this.patientRepository = patientRepository;
         this.medecinRepository = medecinRepository;
+        this.predictServiceClient = predictServiceClient;
     }
 
     @Override
@@ -101,6 +106,11 @@ public class PatientServiceImpl implements PatientService {
             throw new ResourceNotFoundException("Patient not found with id: " + id);
         }
         patientRepository.deleteById(id);
+    }
+
+    @Override
+    public PredictResponseDTO predictPatientRisk(Long id) {
+        return predictServiceClient.predictRisk(id);
     }
 
     private Patient findPatient(Long id) {

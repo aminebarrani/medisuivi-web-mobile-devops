@@ -30,19 +30,11 @@ spring:
           filters:
             - RewritePath=/api/(?<segment>.*), /${segment}
 
-        # Patient Service (Profiles, Medical Data, Illness)
+        # Patient Service (Profiles, Medical Data, Illness, Mesures, Alertes)
         - id: patient-service-route
           uri: lb://patient-service
           predicates:
-            - Path=/api/patients/**, /api/maladies/**
-          filters:
-            - RewritePath=/api/(?<segment>.*), /${segment}
-
-        # Mesures & Alertes Service (Health Measures, Automatic Alerts)
-        - id: mesures-alertes-service-route
-          uri: lb://mesures-alertes-service
-          predicates:
-            - Path=/api/mesures/**, /api/alertes/**
+            - Path=/api/patients/**, /api/maladies/**, /api/mesures/**, /api/alertes/**, /api/symptomes/**, /api/medecins/**, /api/patient-maladies/**
           filters:
             - RewritePath=/api/(?<segment>.*), /${segment}
 

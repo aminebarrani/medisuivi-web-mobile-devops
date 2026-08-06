@@ -18,10 +18,14 @@ public class MesureServiceImpl implements MesureService {
 
     private final MesureRepository mesureRepository;
     private final PatientRepository patientRepository;
+    private final PredictServiceClient predictServiceClient;
 
-    public MesureServiceImpl(MesureRepository mesureRepository, PatientRepository patientRepository) {
+    public MesureServiceImpl(MesureRepository mesureRepository,
+                             PatientRepository patientRepository,
+                             PredictServiceClient predictServiceClient) {
         this.mesureRepository = mesureRepository;
         this.patientRepository = patientRepository;
+        this.predictServiceClient = predictServiceClient;
     }
 
     @Override
@@ -38,7 +42,18 @@ public class MesureServiceImpl implements MesureService {
                 .source(dto.getSource())
                 .build();
 
-        return mapToDTO(mesureRepository.save(mesure));
+        Mesure savedMesure = mesureRepository.save(mesure);
+        mesureRepository.flush();
+
+        // Auto-recalculate patient risk in real-time
+        try {
+            predictServiceClient.predictRisk(dto.getPatientId());
+        } catch (Exception e) {
+            // Log or ignore ML service connection errors so measurement saving succeeds
+            System.err.println("Could not auto-predict risk for patient " + dto.getPatientId() + ": " + e.getMessage());
+        }
+
+        return mapToDTO(savedMesure);
     }
 
     @Override

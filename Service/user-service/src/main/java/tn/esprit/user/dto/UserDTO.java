@@ -16,5 +16,6 @@ public class UserDTO {
     private String lastName;
     private Role role;
     private String phone;
+    private String profilePictureUrl;
     private boolean active;
 }

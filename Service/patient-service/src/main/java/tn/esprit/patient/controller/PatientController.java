@@ -63,4 +63,9 @@ public class PatientController {
         patientService.delete(id);
         return ResponseEntity.noContent().build();
     }
+
+    @PostMapping("/{id}/predict-risk")
+    public ResponseEntity<tn.esprit.patient.dto.PredictResponseDTO> predictRisk(@PathVariable Long id) {
+        return ResponseEntity.ok(patientService.predictPatientRisk(id));
+    }
 }
