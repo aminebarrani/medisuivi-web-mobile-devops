@@ -1,0 +1,42 @@
+﻿# Dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native build outputs
+ios/
+android/
+
+# Build
+*.jsbundle
+*.map
+build/
+
+# Environment variables - NEVER commit
+.env
+.env.local
+.env.production
+.env.staging
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS junk
+.DS_Store
+Thumbs.db
+*.orig
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# TypeScript
+*.tsbuildinfo
