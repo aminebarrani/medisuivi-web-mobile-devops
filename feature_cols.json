@@ -1,0 +1,1 @@
+["age", "sexe_enc", "disease_enc", "jours_depuis_diagnostic", "valeur_mesure_proche", "deviation_score", "rolling_mean_14j", "rolling_std_14j", "trend_slope_14j", "nb_symptomes_recents_7j"]
