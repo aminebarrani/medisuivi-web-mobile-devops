@@ -12,7 +12,7 @@ export interface RegisterRequest {
   firstName: string;
   lastName: string;
   phone?: string;
-  role: 'MEDECIN';
+  role: 'MEDECIN' | 'PATIENT';
   active: boolean;
 }
 
@@ -100,6 +100,17 @@ const authService = {
     });
     return response.data;
   },
+
+  async getAllUsers(): Promise<UserDTO[]> {
+    const response = await axiosInstance.get<UserDTO[]>('/users');
+    return response.data;
+  },
+
+  async getUserById(id: number): Promise<UserDTO> {
+    const response = await axiosInstance.get<UserDTO>(`/users/${id}`);
+    return response.data;
+  },
+
 
 
   // Profile picture is stored as base64 in localStorage (client-side fallback)

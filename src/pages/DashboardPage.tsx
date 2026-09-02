@@ -9,8 +9,6 @@ import {
   tabClass,
   riskBadgeClass,
   graviteBadgeClass,
-  pwdStrengthClass,
-  pwdStrengthBarClass,
   type TabType,
 } from '../utils/dashboardClasses';
 
@@ -34,6 +32,9 @@ const DashboardPage: React.FC = () => {
   const [patientSearch, setPatientSearch] = useState('');
   const [riskFilter, setRiskFilter] = useState<string>('ALL');
 
+  // Doctor's medecinProfileId
+  const [medecinId, setMedecinId] = useState<number | null>(null);
+
   // Modals visibility
   const [showAddPatientModal, setShowAddPatientModal] = useState(false);
   const [showAddMaladieModal, setShowAddMaladieModal] = useState(false);
@@ -46,7 +47,9 @@ const DashboardPage: React.FC = () => {
 
   // Forms
   const [newPatientForm, setNewPatientForm] = useState({
-    userId: Math.floor(Math.random() * 1000) + 10,
+    username: '',
+    email: '',
+    password: '',
     nom: '',
     prenom: '',
     dateNaissance: '1990-05-15',
@@ -75,6 +78,17 @@ const DashboardPage: React.FC = () => {
     unite: 'mmHg',
     source: 'MEDECIN' as Source,
   });
+
+  const handleMeasureTypeChange = (type: TypeMesure) => {
+    let unit = 'mmHg';
+    let defaultVal = 120;
+    if (type === 'GLYCEMIE') { unit = 'g/L'; defaultVal = 1.0; }
+    else if (type === 'FREQUENCE_CARDIAQUE') { unit = 'bpm'; defaultVal = 75; }
+    else if (type === 'TEMPERATURE') { unit = '°C'; defaultVal = 37.0; }
+    else if (type === 'POIDS') { unit = 'kg'; defaultVal = 70.0; }
+    else if (type === 'SPO2') { unit = '%'; defaultVal = 98; }
+    setNewMesureForm((prev) => ({ ...prev, typeMesure: type, unite: unit, valeur: defaultVal }));
+  };
 
   const [newSymptomeForm, setNewSymptomeForm] = useState({
     patientId: 1,
@@ -204,67 +218,139 @@ const DashboardPage: React.FC = () => {
     }
   };
 
-  // Initial Mock Data Fallbacks if service endpoints return empty
-  const mockPatients: PatientDTO[] = [
-    { id: 1, userId: 101, medecinId: 1, dateNaissance: '1985-04-12', sexe: 'HOMME', niveauRisque: 'ELEVE', dateCreation: '2025-01-10', nom: 'Ben Ali', prenom: 'Mohamed', email: 'mohamed.benali@email.tn' },
-    { id: 2, userId: 102, medecinId: 1, dateNaissance: '1992-09-23', sexe: 'FEMME', niveauRisque: 'CRITIQUE', dateCreation: '2025-02-01', nom: 'Trabelsi', prenom: 'Amina', email: 'amina.trabelsi@email.tn' },
-    { id: 3, userId: 103, medecinId: 1, dateNaissance: '1978-11-05', sexe: 'HOMME', niveauRisque: 'FAIBLE', dateCreation: '2025-02-15', nom: 'Gharbi', prenom: 'Sami', email: 'sami.gharbi@email.tn' },
-    { id: 4, userId: 104, medecinId: 1, dateNaissance: '1999-01-30', sexe: 'FEMME', niveauRisque: 'MOYEN', dateCreation: '2025-03-01', nom: 'Bouazizi', prenom: 'Yasmine', email: 'yasmine.bouazizi@email.tn' },
-  ];
-
-  const mockMaladies: MaladieDTO[] = [
-    { id: 1, nom: 'Diabète de Type 2', description: 'Trouble du métabolisme du glucose avec hyperglycémie chronique.', parametresSuivis: 'Glycémie, HbA1c', seuilMin: 70, seuilMax: 180 },
-    { id: 2, nom: 'Hypertension Artérielle', description: 'Pression artérielle élevée de manière permanente.', parametresSuivis: 'Systolique, Diastolique', seuilMin: 90, seuilMax: 140 },
-    { id: 3, nom: 'Insuffisance Cardiaque', description: 'Incapacité du cœur à pomper suffisamment de sang.', parametresSuivis: 'Fréquence cardiaque, SpO2', seuilMin: 60, seuilMax: 100 },
-  ];
-
-  const mockAlertes: AlerteDTO[] = [
-    { id: 1, patientId: 2, niveauRisque: 'CRITIQUE', source: 'MESURE', description: 'Pic de glycémie détecté : 240 mg/dL (Seuil max: 180)', dateCreation: '2026-07-21T21:30:00', traitee: false },
-    { id: 2, patientId: 1, niveauRisque: 'ELEVE', source: 'SYMPTOME', description: 'Palpitations sévères et essoufflement signalés.', dateCreation: '2026-07-21T18:45:00', traitee: false },
-    { id: 3, patientId: 4, niveauRisque: 'MOYEN', source: 'AUTOMATIQUE', description: 'Omission de mesure quotidienne de tension.', dateCreation: '2026-07-20T09:00:00', traitee: true },
-  ];
-
-  const mockMesures: MesureDTO[] = [
-    { id: 1, patientId: 2, typeMesure: 'GLYCEMIE', valeur: 240, unite: 'mg/dL', source: 'CAPTEUR', dateMesure: '2026-07-21T21:30:00' },
-    { id: 2, patientId: 1, typeMesure: 'TENSION', valeur: 155, unite: 'mmHg', source: 'PATIENT', dateMesure: '2026-07-21T20:10:00' },
-    { id: 3, patientId: 3, typeMesure: 'FREQUENCE_CARDIAQUE', valeur: 72, unite: 'bpm', source: 'MEDECIN', dateMesure: '2026-07-21T15:00:00' },
-  ];
-
-  const mockSymptomes: SymptomeDTO[] = [
-    { id: 1, patientId: 1, description: 'Palpitations musculaires et étourdissements', gravite: 'GRAVE', dateSignalement: '2026-07-21T18:45:00' },
-    { id: 2, patientId: 4, description: 'Céphalees modérées le matin', gravite: 'MODERE', dateSignalement: '2026-07-21T10:15:00' },
-  ];
-
   useEffect(() => {
-    loadDashboardData();
+    loadDashboardData(true);
+    // Silent auto-refresh every 8 seconds to synchronize patient alerts in real-time
+    const syncInterval = setInterval(() => {
+      loadDashboardData(false);
+    }, 8000);
+    return () => clearInterval(syncInterval);
   }, []);
 
-  const loadDashboardData = async () => {
-    setLoading(true);
+  const loadDashboardData = async (showSpinner = true) => {
+    if (showSpinner) setLoading(true);
     try {
+      let activeMedecinId = 1;
+      if (user?.id) {
+        try {
+          const profile = await patientService.getMedecinByUserId(user.id);
+          activeMedecinId = profile.id;
+          setMedecinId(profile.id);
+        } catch (err: any) {
+          if (err.response?.status === 404) {
+            // Auto-create doctor profile if it doesn't exist
+            try {
+              const newProfile = await patientService.createMedecin({
+                userId: user.id,
+                specialite: 'Cardiologue',
+                numeroOrdre: `DR-${user.id}-${Math.floor(1000 + Math.random() * 9000)}`,
+              });
+              activeMedecinId = newProfile.id;
+              setMedecinId(newProfile.id);
+            } catch (createErr) {
+              console.error("Error auto-creating Medecin profile:", createErr);
+            }
+          } else {
+            console.error("Error fetching Medecin profile:", err);
+          }
+        }
+      }
+
       // Try live API calls
-      const [pts, mals, alrs, msrs, symp] = await Promise.allSettled([
-        patientService.getAllPatients(),
+      const [pts, mals, alrs, msrs, symp, usrs] = await Promise.allSettled([
+        patientService.getPatientsByMedecin(activeMedecinId),
         maladieService.getAllMaladies(),
-        suiviService.getAlertesByMedecin(user?.id || 1),
-        suiviService.getMesuresByMedecin(user?.id || 1),
-        suiviService.getSymptomesByMedecin(user?.id || 1),
+        suiviService.getAlertesByMedecin(activeMedecinId),
+        suiviService.getMesuresByMedecin(activeMedecinId),
+        suiviService.getSymptomesByMedecin(activeMedecinId),
+        authService.getAllUsers(),
       ]);
 
-      setPatients(pts.status === 'fulfilled' && pts.value.length > 0 ? pts.value : mockPatients);
-      setMaladies(mals.status === 'fulfilled' && mals.value.length > 0 ? mals.value : mockMaladies);
-      setAlertes(alrs.status === 'fulfilled' && alrs.value.length > 0 ? alrs.value : mockAlertes);
-      setMesures(msrs.status === 'fulfilled' && msrs.value.length > 0 ? msrs.value : mockMesures);
-      setSymptomes(symp.status === 'fulfilled' && symp.value.length > 0 ? symp.value : mockSymptomes);
-    } catch {
-      setPatients(mockPatients);
-      setMaladies(mockMaladies);
-      setAlertes(mockAlertes);
-      setMesures(mockMesures);
-      setSymptomes(mockSymptomes);
+      const usersList = usrs.status === 'fulfilled' ? usrs.value : [];
+      const userMap = new Map(usersList.map((u) => [u.id, u]));
+
+      const loadedPatients = pts.status === 'fulfilled' ? pts.value : [];
+      const enrichedPatients = loadedPatients.map((p) => {
+        const u = userMap.get(p.userId);
+        return {
+          ...p,
+          nom: u ? u.lastName : (p.nom || ''),
+          prenom: u ? u.firstName : (p.prenom || ''),
+          email: u ? u.email : (p.email || ''),
+        };
+      });
+
+      setPatients(enrichedPatients);
+      setMaladies(mals.status === 'fulfilled' ? mals.value : []);
+      setAlertes(alrs.status === 'fulfilled' ? alrs.value : []);
+      setMesures(msrs.status === 'fulfilled' ? msrs.value : []);
+      setSymptomes(symp.status === 'fulfilled' ? symp.value : []);
+    } catch (e) {
+      console.error("Failed to load dashboard data:", e);
+      setPatients([]);
+      setMaladies([]);
+      setAlertes([]);
+      setMesures([]);
+      setSymptomes([]);
     } finally {
       setLoading(false);
     }
+  };
+
+  const getPatientDisplayName = (patientId: number): string => {
+    const p = patients.find((pat) => pat.id === patientId);
+    if (p && (p.prenom || p.nom)) {
+      return `${p.prenom || ''} ${p.nom || ''}`.trim();
+    }
+    return `Patient #${patientId}`;
+  };
+
+  // Synchronize form defaults whenever patients or maladies change
+  useEffect(() => {
+    if (patients.length > 0) {
+      const firstPatientId = patients[0].id;
+      setNewMesureForm((prev) => ({
+        ...prev,
+        patientId: patients.some((p) => p.id === prev.patientId) ? prev.patientId : firstPatientId,
+      }));
+      setNewSymptomeForm((prev) => ({
+        ...prev,
+        patientId: patients.some((p) => p.id === prev.patientId) ? prev.patientId : firstPatientId,
+      }));
+      setAssignMaladieForm((prev) => ({
+        ...prev,
+        patientId: patients.some((p) => p.id === prev.patientId) ? prev.patientId : firstPatientId,
+      }));
+    }
+  }, [patients]);
+
+  useEffect(() => {
+    if (maladies.length > 0) {
+      const firstMaladieId = maladies[0].id;
+      setAssignMaladieForm((prev) => ({
+        ...prev,
+        maladieId: maladies.some((m) => m.id === prev.maladieId) ? prev.maladieId : firstMaladieId,
+      }));
+    }
+  }, [maladies]);
+
+  const openAddMesureModal = (patientId?: number) => {
+    const targetId = patientId || (patients.length > 0 ? patients[0].id : 1);
+    setNewMesureForm((prev) => ({ ...prev, patientId: targetId }));
+    setShowAddMesureModal(true);
+  };
+
+  const openAddSymptomeModal = (patientId?: number) => {
+    const targetId = patientId || (patients.length > 0 ? patients[0].id : 1);
+    setNewSymptomeForm((prev) => ({ ...prev, patientId: targetId }));
+    setShowAddSymptomeModal(true);
+  };
+
+  const openAssignMaladieModal = (patientId?: number) => {
+    const targetPatientId = patientId || (patients.length > 0 ? patients[0].id : 1);
+    const targetMaladieId = maladies.length > 0 ? maladies[0].id : 1;
+    setAssignMaladieForm((prev) => ({ ...prev, patientId: targetPatientId, maladieId: targetMaladieId }));
+    setShowAssignMaladieModal(true);
   };
 
   const handleLogout = () => {
@@ -276,34 +362,55 @@ const DashboardPage: React.FC = () => {
   const handleAddPatient = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      // 1. Create the User account in user-service with PATIENT role
+      const registeredUser = await authService.register({
+        username: newPatientForm.username,
+        email: newPatientForm.email,
+        password: newPatientForm.password,
+        firstName: newPatientForm.prenom,
+        lastName: newPatientForm.nom,
+        role: 'PATIENT',
+        active: true,
+      });
+
+      // 2. Create the Patient profile linked to the new User ID in patient-service
       const created = await patientService.createPatient({
-        userId: newPatientForm.userId,
-        medecinId: user?.id || 1,
+        userId: registeredUser.id,
+        medecinId: medecinId || 1,
         dateNaissance: newPatientForm.dateNaissance,
         sexe: newPatientForm.sexe,
         niveauRisque: newPatientForm.niveauRisque,
       });
+
       const enriched: PatientDTO = {
         ...created,
-        nom: newPatientForm.nom || 'Patient',
-        prenom: newPatientForm.prenom || `#${created.id}`,
+        nom: newPatientForm.nom,
+        prenom: newPatientForm.prenom,
+        email: newPatientForm.email,
       };
       setPatients([enriched, ...patients]);
-    } catch {
-      const mockNew: PatientDTO = {
-        id: patients.length + 1,
-        userId: newPatientForm.userId,
-        medecinId: user?.id || 1,
-        dateNaissance: newPatientForm.dateNaissance,
-        sexe: newPatientForm.sexe,
-        niveauRisque: newPatientForm.niveauRisque,
-        dateCreation: new Date().toISOString().split('T')[0],
-        nom: newPatientForm.nom || 'Nouveau',
-        prenom: newPatientForm.prenom || `Patient #${patients.length + 1}`,
-      };
-      setPatients([mockNew, ...patients]);
+      alert(`Patient '${newPatientForm.prenom} ${newPatientForm.nom}' enregistré avec succès !`);
+      
+      // Reset form
+      setNewPatientForm({
+        username: '',
+        email: '',
+        password: '',
+        nom: '',
+        prenom: '',
+        dateNaissance: '1990-05-15',
+        sexe: 'HOMME' as Sexe,
+        niveauRisque: 'FAIBLE' as NiveauRisque,
+      });
+      setShowAddPatientModal(false);
+    } catch (err: any) {
+      console.error("Error creating patient:", err);
+      alert(
+        err.response?.data?.message ||
+        err.message ||
+        "Une erreur s'est produite lors de l'enregistrement du patient. Vérifiez que les microservices backend sont démarrés."
+      );
     }
-    setShowAddPatientModal(false);
   };
 
   const handleAddMaladie = async (e: React.FormEvent) => {
@@ -323,45 +430,90 @@ const DashboardPage: React.FC = () => {
 
   const handleAssignMaladie = async (e: React.FormEvent) => {
     e.preventDefault();
-    try {
-      await maladieService.addMaladieToPatient(assignMaladieForm);
-      alert('Maladie attribuée au patient avec succès!');
-    } catch {
-      alert('Diagnostic enregistré avec succès!');
+    let finalPatientId = assignMaladieForm.patientId;
+    if (!patients.some((p) => p.id === finalPatientId)) {
+      if (patients.length > 0) {
+        finalPatientId = patients[0].id;
+      } else {
+        alert("Veuillez d'abord ajouter un patient avant d'affecter une pathologie.");
+        return;
+      }
     }
-    setShowAssignMaladieModal(false);
+
+    let finalMaladieId = assignMaladieForm.maladieId;
+    if (!maladies.some((m) => m.id === finalMaladieId)) {
+      if (maladies.length > 0) {
+        finalMaladieId = maladies[0].id;
+      } else {
+        alert("Veuillez d'abord créer une pathologie.");
+        return;
+      }
+    }
+
+    try {
+      await maladieService.addMaladieToPatient({
+        ...assignMaladieForm,
+        patientId: finalPatientId,
+        maladieId: finalMaladieId,
+      });
+      alert('Maladie attribuée au patient avec succès !');
+      setShowAssignMaladieModal(false);
+    } catch (err: any) {
+      alert(err.response?.data?.message || err.message || 'Diagnostic enregistré avec succès !');
+      setShowAssignMaladieModal(false);
+    }
   };
 
   const handleAddMesure = async (e: React.FormEvent) => {
     e.preventDefault();
-    try {
-      const created = await suiviService.createMesure(newMesureForm);
-      setMesures([created, ...mesures]);
-    } catch {
-      const mockNew: MesureDTO = {
-        id: mesures.length + 1,
-        ...newMesureForm,
-        dateMesure: new Date().toISOString(),
-      };
-      setMesures([mockNew, ...mesures]);
+    let finalPatientId = newMesureForm.patientId;
+    if (!patients.some((p) => p.id === finalPatientId)) {
+      if (patients.length > 0) {
+        finalPatientId = patients[0].id;
+      } else {
+        alert("Veuillez d'abord ajouter un patient avant d'enregistrer une mesure.");
+        return;
+      }
     }
-    setShowAddMesureModal(false);
+
+    try {
+      const payload = {
+        ...newMesureForm,
+        patientId: finalPatientId,
+      };
+      const created = await suiviService.createMesure(payload);
+      setMesures([created, ...mesures]);
+      alert('Mesure enregistrée avec succès !');
+      setShowAddMesureModal(false);
+    } catch (err: any) {
+      alert(err.response?.data?.message || err.message || "Erreur lors de l'enregistrement de la mesure.");
+    }
   };
 
   const handleAddSymptome = async (e: React.FormEvent) => {
     e.preventDefault();
-    try {
-      const created = await suiviService.createSymptome(newSymptomeForm);
-      setSymptomes([created, ...symptomes]);
-    } catch {
-      const mockNew: SymptomeDTO = {
-        id: symptomes.length + 1,
-        ...newSymptomeForm,
-        dateSignalement: new Date().toISOString(),
-      };
-      setSymptomes([mockNew, ...symptomes]);
+    let finalPatientId = newSymptomeForm.patientId;
+    if (!patients.some((p) => p.id === finalPatientId)) {
+      if (patients.length > 0) {
+        finalPatientId = patients[0].id;
+      } else {
+        alert("Veuillez d'abord ajouter un patient avant de signaler un symptôme.");
+        return;
+      }
     }
-    setShowAddSymptomeModal(false);
+
+    try {
+      const payload = {
+        ...newSymptomeForm,
+        patientId: finalPatientId,
+      };
+      const created = await suiviService.createSymptome(payload);
+      setSymptomes([created, ...symptomes]);
+      alert('Symptôme enregistré avec succès !');
+      setShowAddSymptomeModal(false);
+    } catch (err: any) {
+      alert(err.response?.data?.message || err.message || "Erreur lors de l'enregistrement du symptôme.");
+    }
   };
 
   const handleMarkAlerteTraitee = async (alerteId: number) => {
@@ -374,12 +526,20 @@ const DashboardPage: React.FC = () => {
   };
 
   const handleUpdateRisk = async (patientId: number, risk: NiveauRisque) => {
+    const backendRisk = (risk === 'MOYEN' ? 'MODERE' : risk) as NiveauRisque;
     try {
-      await patientService.updateNiveauRisque(patientId, risk);
-    } catch {
-      // fallback
+      await patientService.updateNiveauRisque(patientId, backendRisk);
+      setPatients((prev) =>
+        prev.map((p) => (p.id === patientId ? { ...p, niveauRisque: backendRisk } : p))
+      );
+      if (selectedPatient && selectedPatient.id === patientId) {
+        setSelectedPatient({ ...selectedPatient, niveauRisque: backendRisk });
+      }
+      alert(`Niveau de risque mis à jour vers '${backendRisk}' avec succès !`);
+    } catch (err: any) {
+      console.error('Failed to update risk:', err);
+      alert(err.response?.data?.message || err.message || 'Erreur lors de la mise à jour du risque.');
     }
-    setPatients(patients.map((p) => (p.id === patientId ? { ...p, niveauRisque: risk } : p)));
   };
 
   const handlePredictRisk = async (patientId: number) => {
@@ -453,6 +613,18 @@ const DashboardPage: React.FC = () => {
                   <p className="dash-user-role">Cardiologie / Suivi Médical</p>
                 </div>
               </div>
+
+              <button
+                id="refresh-button"
+                onClick={() => loadDashboardData()}
+                className="dash-btn-ghost flex items-center gap-1.5 text-teal-400 hover:text-teal-300 border border-teal-500/30 px-3 py-1.5 rounded-xl text-xs font-semibold"
+                title="Actualiser les données en direct"
+              >
+                <svg className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                <span className="hidden sm:inline">Actualiser</span>
+              </button>
 
               <button
                 id="logout-button"
@@ -605,6 +777,7 @@ const DashboardPage: React.FC = () => {
                                 {a.niveauRisque}
                               </span>
                               <span className="badge-source">Source: {a.source}</span>
+                              <span className="text-xs font-semibold text-teal-400">{getPatientDisplayName(a.patientId)}</span>
                             </div>
                             <p className="text-sm font-semibold text-white mt-1">{a.description}</p>
                           </div>
@@ -640,7 +813,7 @@ const DashboardPage: React.FC = () => {
                     </button>
 
                     <button
-                      onClick={() => setShowAssignMaladieModal(true)}
+                      onClick={() => openAssignMaladieModal()}
                       className="dash-action-secondary"
                     >
                       <div className="dash-action-icon bg-cyan-500/20 text-cyan-400">
@@ -653,7 +826,7 @@ const DashboardPage: React.FC = () => {
                     </button>
 
                     <button
-                      onClick={() => setShowAddMesureModal(true)}
+                      onClick={() => openAddMesureModal()}
                       className="dash-action-secondary"
                     >
                       <div className="dash-action-icon bg-amber-500/20 text-amber-400">
@@ -740,12 +913,12 @@ const DashboardPage: React.FC = () => {
                                 Profil
                               </button>
                               <select
-                                value={p.niveauRisque}
+                                value={p.niveauRisque === 'MOYEN' ? 'MODERE' : p.niveauRisque}
                                 onChange={(e) => handleUpdateRisk(p.id, e.target.value as NiveauRisque)}
                                 className="dash-select text-xs"
                               >
                                 <option value="FAIBLE">Niveau: FAIBLE</option>
-                                <option value="MOYEN">Niveau: MOYEN</option>
+                                <option value="MODERE">Niveau: MODÉRÉ</option>
                                 <option value="ELEVE">Niveau: ÉLEVÉ</option>
                                 <option value="CRITIQUE">Niveau: CRITIQUE</option>
                               </select>
@@ -821,13 +994,13 @@ const DashboardPage: React.FC = () => {
                   <h2 className="text-lg font-bold text-white">Relevés de Santé & Symptômes</h2>
                   <div className="flex gap-3">
                     <button
-                      onClick={() => setShowAddMesureModal(true)}
+                      onClick={() => openAddMesureModal()}
                       className="dash-btn-teal"
                     >
                       + Saisir une Mesure
                     </button>
                     <button
-                      onClick={() => setShowAddSymptomeModal(true)}
+                      onClick={() => openAddSymptomeModal()}
                       className="dash-btn-amber"
                     >
                       + Signaler Symptôme
@@ -842,25 +1015,35 @@ const DashboardPage: React.FC = () => {
                       <span>📈 Historique des Mesures</span>
                     </h3>
                     <div className="space-y-3">
-                      {mesures.map((ms) => (
-                        <div key={ms.id} className="dash-list-item flex items-center justify-between">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="badge-type">
-                                {ms.typeMesure}
-                              </span>
-                              <span className="text-muted-xs">Patient #{ms.patientId}</span>
+                      {mesures.length === 0 ? (
+                        <p className="text-slate-500 text-sm py-4 text-center">Aucune mesure enregistrée pour vos patients.</p>
+                      ) : (
+                        mesures.map((ms) => (
+                          <div key={ms.id} className="dash-list-item flex items-center justify-between">
+                            <div>
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="badge-type">
+                                  {ms.typeMesure}
+                                </span>
+                                <span className="font-semibold text-teal-400 text-sm">{getPatientDisplayName(ms.patientId)}</span>
+                              </div>
+                              <p className="text-value-lg">
+                                {ms.valeur} <span className="text-value-unit">{ms.unite}</span>
+                              </p>
                             </div>
-                            <p className="text-value-lg">
-                              {ms.valeur} <span className="text-value-unit">{ms.unite}</span>
-                            </p>
+                            <div className="text-right text-muted-xs space-y-1">
+                              <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold ${
+                                ms.source === 'PATIENT' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' :
+                                ms.source === 'MEDECIN' ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30' :
+                                'bg-slate-700 text-slate-300'
+                              }`}>
+                                {ms.source === 'PATIENT' ? '📱 Saisie Patient' : ms.source === 'MEDECIN' ? '🩺 Saisie Médecin' : '📡 ' + ms.source}
+                              </span>
+                              <p>{new Date(ms.dateMesure).toLocaleString('fr-FR')}</p>
+                            </div>
                           </div>
-                          <div className="text-right text-muted-xs">
-                            <p>Source: {ms.source}</p>
-                            <p>{new Date(ms.dateMesure).toLocaleDateString('fr-FR')}</p>
-                          </div>
-                        </div>
-                      ))}
+                        ))
+                      )}
                     </div>
                   </div>
 
@@ -870,22 +1053,26 @@ const DashboardPage: React.FC = () => {
                       <span>🩺 Symptômes Constatés</span>
                     </h3>
                     <div className="space-y-3">
-                      {symptomes.map((sy) => (
-                        <div key={sy.id} className="dash-list-item flex items-center justify-between">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className={`badge ${graviteBadgeClass(sy.gravite)}`}>
-                                Gravité: {sy.gravite}
-                              </span>
-                              <span className="text-muted-xs">Patient #{sy.patientId}</span>
+                      {symptomes.length === 0 ? (
+                        <p className="text-slate-500 text-sm py-4 text-center">Aucun symptôme signalé.</p>
+                      ) : (
+                        symptomes.map((sy) => (
+                          <div key={sy.id} className="dash-list-item flex items-center justify-between">
+                            <div>
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className={`badge ${graviteBadgeClass(sy.gravite)}`}>
+                                  Gravité: {sy.gravite}
+                                </span>
+                                <span className="font-semibold text-teal-400 text-sm">{getPatientDisplayName(sy.patientId)}</span>
+                              </div>
+                              <p className="text-sm text-slate-200 mt-2">{sy.description}</p>
                             </div>
-                            <p className="text-sm text-slate-200 mt-2">{sy.description}</p>
+                            <div className="text-right text-muted-xs">
+                              <p>{new Date(sy.dateSignalement).toLocaleString('fr-FR')}</p>
+                            </div>
                           </div>
-                          <div className="text-right text-muted-xs">
-                            <p>{new Date(sy.dateSignalement).toLocaleDateString('fr-FR')}</p>
-                          </div>
-                        </div>
-                      ))}
+                        ))
+                      )}
                     </div>
                   </div>
                 </div>
@@ -901,45 +1088,49 @@ const DashboardPage: React.FC = () => {
                 </div>
 
                 <div className="space-y-4">
-                  {alertes.map((al) => (
-                    <div
-                      key={al.id}
-                      className={`dash-alert-card ${
-                        al.traitee
-                          ? 'dash-alert-done'
-                          : 'dash-alert-active'
-                      }`}
-                    >
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-3">
-                          <span className={`badge ${riskBadgeClass(al.niveauRisque)}`}>
-                            {al.niveauRisque}
-                          </span>
-                          <span className="badge-source">
-                            Source: {al.source}
-                          </span>
-                          <span className="text-id text-xs">Patient #{al.patientId}</span>
+                  {alertes.length === 0 ? (
+                    <p className="text-slate-500 text-sm py-6 text-center">Aucune alerte médicale pour le moment.</p>
+                  ) : (
+                    alertes.map((al) => (
+                      <div
+                        key={al.id}
+                        className={`dash-alert-card ${
+                          al.traitee
+                            ? 'dash-alert-done'
+                            : 'dash-alert-active'
+                        }`}
+                      >
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-3">
+                            <span className={`badge ${riskBadgeClass(al.niveauRisque)}`}>
+                              {al.niveauRisque}
+                            </span>
+                            <span className="badge-source">
+                              Source: {al.source}
+                            </span>
+                            <span className="font-semibold text-teal-400 text-sm">{getPatientDisplayName(al.patientId)}</span>
+                          </div>
+                          <p className="text-base font-semibold text-white">{al.description}</p>
+                          <p className="text-muted-xs">Date: {new Date(al.dateCreation).toLocaleString('fr-FR')}</p>
                         </div>
-                        <p className="text-base font-semibold text-white">{al.description}</p>
-                        <p className="text-muted-xs">Date: {new Date(al.dateCreation).toLocaleString('fr-FR')}</p>
-                      </div>
 
-                      <div>
-                        {al.traitee ? (
-                          <span className="badge-treated">
-                            ✓ Traitée
-                          </span>
-                        ) : (
-                          <button
-                            onClick={() => handleMarkAlerteTraitee(al.id)}
-                            className="dash-btn-gradient text-xs"
-                          >
-                            Marquer comme Traitée
-                          </button>
-                        )}
+                        <div>
+                          {al.traitee ? (
+                            <span className="badge-treated">
+                              ✓ Traitée
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => handleMarkAlerteTraitee(al.id)}
+                              className="dash-btn-gradient text-xs"
+                            >
+                              Marquer comme Traitée
+                            </button>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
               </div>
             )}
@@ -1328,7 +1519,17 @@ const DashboardPage: React.FC = () => {
                             {[1,2,3,4].map(i => (
                               <div
                                 key={i}
-                                className={`h-1 flex-1 rounded-full transition-all duration-300 ${i <= pwdStrength ? pwdStrengthColor : 'bg-slate-800'}`}
+                                className={`h-1 flex-1 rounded-full transition-all duration-300 ${
+                                  i <= pwdStrength
+                                    ? pwdStrength <= 1
+                                      ? 'bg-rose-500'
+                                      : pwdStrength === 2
+                                      ? 'bg-amber-500'
+                                      : pwdStrength === 3
+                                      ? 'bg-teal-500'
+                                      : 'bg-emerald-500'
+                                    : 'bg-slate-800'
+                                }`}
                               />
                             ))}
                           </div>
@@ -1453,11 +1654,12 @@ const DashboardPage: React.FC = () => {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="dash-label">User ID (Optionnel)</label>
+                  <label className="dash-label">Nom d'utilisateur (Login)</label>
                   <input
-                    type="number"
-                    value={newPatientForm.userId}
-                    onChange={(e) => setNewPatientForm({ ...newPatientForm, userId: Number(e.target.value) })}
+                    type="text"
+                    placeholder="ex: mohamed.ali"
+                    value={newPatientForm.username}
+                    onChange={(e) => setNewPatientForm({ ...newPatientForm, username: e.target.value })}
                     className="dash-input"
                     required
                   />
@@ -1468,6 +1670,30 @@ const DashboardPage: React.FC = () => {
                     type="date"
                     value={newPatientForm.dateNaissance}
                     onChange={(e) => setNewPatientForm({ ...newPatientForm, dateNaissance: e.target.value })}
+                    className="dash-input"
+                    required
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="dash-label">Adresse Email</label>
+                  <input
+                    type="email"
+                    placeholder="ex: patient@email.com"
+                    value={newPatientForm.email}
+                    onChange={(e) => setNewPatientForm({ ...newPatientForm, email: e.target.value })}
+                    className="dash-input"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="dash-label">Mot de passe temporaire</label>
+                  <input
+                    type="password"
+                    placeholder="••••••••"
+                    value={newPatientForm.password}
+                    onChange={(e) => setNewPatientForm({ ...newPatientForm, password: e.target.value })}
                     className="dash-input"
                     required
                   />
@@ -1613,11 +1839,15 @@ const DashboardPage: React.FC = () => {
                   onChange={(e) => setAssignMaladieForm({ ...assignMaladieForm, patientId: Number(e.target.value) })}
                   className="dash-select"
                 >
-                  {patients.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.nom ? `${p.prenom} ${p.nom}` : `Patient #${p.id}`}
-                    </option>
-                  ))}
+                  {patients.length === 0 ? (
+                    <option value="">Aucun patient sous votre suivi</option>
+                  ) : (
+                    patients.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.nom ? `${p.prenom} ${p.nom}` : `Patient #${p.id}`}
+                      </option>
+                    ))
+                  )}
                 </select>
               </div>
               <div>
@@ -1678,11 +1908,15 @@ const DashboardPage: React.FC = () => {
                   onChange={(e) => setNewMesureForm({ ...newMesureForm, patientId: Number(e.target.value) })}
                   className="dash-select"
                 >
-                  {patients.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.nom ? `${p.prenom} ${p.nom}` : `Patient #${p.id}`}
-                    </option>
-                  ))}
+                  {patients.length === 0 ? (
+                    <option value="">Aucun patient sous votre suivi</option>
+                  ) : (
+                    patients.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.nom ? `${p.prenom} ${p.nom}` : `Patient #${p.id}`}
+                      </option>
+                    ))
+                  )}
                 </select>
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -1690,7 +1924,7 @@ const DashboardPage: React.FC = () => {
                   <label className="dash-label">Type de mesure</label>
                   <select
                     value={newMesureForm.typeMesure}
-                    onChange={(e) => setNewMesureForm({ ...newMesureForm, typeMesure: e.target.value as TypeMesure })}
+                    onChange={(e) => handleMeasureTypeChange(e.target.value as TypeMesure)}
                     className="dash-select"
                   >
                     <option value="TENSION">Tension</option>
@@ -1771,11 +2005,15 @@ const DashboardPage: React.FC = () => {
                   onChange={(e) => setNewSymptomeForm({ ...newSymptomeForm, patientId: Number(e.target.value) })}
                   className="dash-select"
                 >
-                  {patients.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.nom ? `${p.prenom} ${p.nom}` : `Patient #${p.id}`}
-                    </option>
-                  ))}
+                  {patients.length === 0 ? (
+                    <option value="">Aucun patient sous votre suivi</option>
+                  ) : (
+                    patients.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.nom ? `${p.prenom} ${p.nom}` : `Patient #${p.id}`}
+                      </option>
+                    ))
+                  )}
                 </select>
               </div>
               <div>

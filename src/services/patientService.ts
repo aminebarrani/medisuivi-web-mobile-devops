@@ -1,7 +1,7 @@
 import axiosInstance from './axiosInstance';
 
 export type Sexe = 'HOMME' | 'FEMME';
-export type NiveauRisque = 'FAIBLE' | 'MOYEN' | 'ELEVE' | 'CRITIQUE';
+export type NiveauRisque = 'FAIBLE' | 'MODERE' | 'MOYEN' | 'ELEVE' | 'CRITIQUE';
 
 export interface PatientDTO {
   id: number;
@@ -58,8 +58,9 @@ const patientService = {
   },
 
   async updateNiveauRisque(patientId: number, niveauRisque: NiveauRisque): Promise<PatientDTO> {
+    const validRisk = (niveauRisque as string) === 'MOYEN' ? 'MODERE' : niveauRisque;
     const res = await axiosInstance.patch<PatientDTO>(`/patients/${patientId}/niveau-risque`, null, {
-      params: { niveauRisque },
+      params: { niveauRisque: validRisk },
     });
     return mapPatientSexeToFront(res.data);
   },
