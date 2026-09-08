@@ -14,14 +14,18 @@ import tn.esprit.user.security.JwtUtils;
 
 import tn.esprit.user.dto.ForgotPasswordRequestDTO;
 import tn.esprit.user.dto.ResetPasswordRequestDTO;
+import tn.esprit.user.exception.ResourceNotFoundException;
+
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
-import java.util.Random;
+import java.time.ZoneId;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 @Transactional
 public class UserServiceImpl implements UserService {
+
+    private static final SecureRandom RANDOM = new SecureRandom();
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
@@ -89,7 +93,7 @@ public class UserServiceImpl implements UserService {
     @Transactional(readOnly = true)
     public UserDTO getUserById(Long id) {
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("User not found with id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + id));
         return mapToDTO(user);
     }
 
@@ -98,13 +102,13 @@ public class UserServiceImpl implements UserService {
     public List<UserDTO> getAllUsers() {
         return userRepository.findAll().stream()
                 .map(this::mapToDTO)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     @Override
     public UserDTO updateUser(Long id, UserDTO updateDTO) {
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("User not found with id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + id));
 
         if (!user.getUsername().equals(updateDTO.getUsername()) && userRepository.existsByUsername(updateDTO.getUsername())) {
             throw new IllegalArgumentException("Username is already taken");
@@ -129,7 +133,7 @@ public class UserServiceImpl implements UserService {
     @Override
     public void deleteUser(Long id) {
         if (!userRepository.existsById(id)) {
-            throw new RuntimeException("User not found with id: " + id);
+            throw new ResourceNotFoundException("User not found with id: " + id);
         }
         userRepository.deleteById(id);
     }
@@ -139,9 +143,9 @@ public class UserServiceImpl implements UserService {
         User user = userRepository.findByEmail(requestDTO.getEmail())
                 .orElseThrow(() -> new IllegalArgumentException("Aucun utilisateur trouvé avec cet e-mail"));
 
-        String resetCode = String.format("%06d", new Random().nextInt(900000) + 100000);
+        String resetCode = String.format("%06d", RANDOM.nextInt(900000) + 100000);
         user.setResetToken(resetCode);
-        user.setResetTokenExpiry(LocalDateTime.now().plusMinutes(15));
+        user.setResetTokenExpiry(LocalDateTime.now(ZoneId.systemDefault()).plusMinutes(15));
         userRepository.save(user);
 
         emailService.sendPasswordResetEmail(user.getEmail(), resetCode);
@@ -152,7 +156,7 @@ public class UserServiceImpl implements UserService {
         User user = userRepository.findByResetToken(requestDTO.getToken())
                 .orElseThrow(() -> new IllegalArgumentException("Code de réinitialisation invalide ou introuvable."));
 
-        if (user.getResetTokenExpiry() == null || user.getResetTokenExpiry().isBefore(LocalDateTime.now())) {
+        if (user.getResetTokenExpiry() == null || user.getResetTokenExpiry().isBefore(LocalDateTime.now(ZoneId.systemDefault()))) {
             throw new IllegalArgumentException("Le code de réinitialisation a expiré. Veuillez en demander un nouveau.");
         }
 

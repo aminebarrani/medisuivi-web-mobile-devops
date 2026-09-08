@@ -38,6 +38,7 @@ tn\esprit\patient\service\PredictServiceClient.class
 tn\esprit\patient\dto\PatientMaladieCreationDTO$PatientMaladieCreationDTOBuilder.class
 tn\esprit\patient\model\Symptome.class
 tn\esprit\patient\service\MesureService.class
+tn\esprit\patient\service\PredictServiceClient$1.class
 tn\esprit\patient\controller\MesureController.class
 tn\esprit\patient\exception\ResourceNotFoundException.class
 tn\esprit\patient\dto\PatientCreationDTO.class
@@ -45,6 +46,7 @@ tn\esprit\patient\model\Mesure$MesureBuilder.class
 tn\esprit\patient\dto\PatientDTO.class
 tn\esprit\patient\repository\PatientRepository.class
 tn\esprit\patient\dto\PredictResponseDTO.class
+tn\esprit\patient\service\PredictServiceClient$DiseaseInfo.class
 tn\esprit\patient\dto\PatientMaladieCreationDTO.class
 tn\esprit\patient\dto\SymptomeCreationDTO.class
 tn\esprit\patient\model\Medecin$MedecinBuilder.class
@@ -62,6 +64,7 @@ tn\esprit\patient\model\Maladie$MaladieBuilder.class
 tn\esprit\patient\dto\MesureCreationDTO.class
 tn\esprit\patient\dto\PredictResponseDTO$PredictResponseDTOBuilder.class
 tn\esprit\patient\dto\SymptomeDTO.class
+tn\esprit\patient\service\PredictServiceClient$MeasurementStats.class
 tn\esprit\patient\model\Alerte.class
 tn\esprit\patient\model\Medecin.class
 tn\esprit\patient\controller\MedecinController.class

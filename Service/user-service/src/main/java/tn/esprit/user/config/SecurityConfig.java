@@ -21,6 +21,7 @@ public class SecurityConfig {
     }
 
     @Bean
+    @SuppressWarnings("java:S4502") // Disabling CSRF is safe: this is a stateless REST API using JWT bearer tokens without cookie-based session auth
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
             .csrf(AbstractHttpConfigurer::disable)

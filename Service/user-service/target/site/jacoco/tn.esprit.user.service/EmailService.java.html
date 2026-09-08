@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EmailService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">user-service</a> &gt; <a href="index.source.html" class="el_package">tn.esprit.user.service</a> &gt; <span class="el_source">EmailService.java</span></div><h1>EmailService.java</h1><pre class="source lang-java linenums">package tn.esprit.user.service;
+
+import jakarta.mail.MessagingException;
+import jakarta.mail.internet.MimeMessage;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
+import org.springframework.stereotype.Service;
+import tn.esprit.user.exception.EmailDeliveryException;
+
+@Service
+public class EmailService {
+
+    private static final String FROM_ADDRESS = &quot;MedSuivi &lt;noreply@medsuivi.tn&gt;&quot;;
+
+    private final JavaMailSender mailSender;
+    private final String frontendUrl;
+
+    public EmailService(
+            JavaMailSender mailSender,
+<span class="fc" id="L21">            @Value(&quot;${medsuivi.frontend.url:http://localhost:5173}&quot;) String frontendUrl) {</span>
+<span class="fc" id="L22">        this.mailSender = mailSender;</span>
+<span class="fc" id="L23">        this.frontendUrl = frontendUrl.replaceAll(&quot;/$&quot;, &quot;&quot;);</span>
+<span class="fc" id="L24">    }</span>
+
+    public void sendPasswordResetEmail(String toEmail, String resetToken) {
+<span class="fc" id="L27">        String resetUrl = frontendUrl + &quot;/reset-password?token=&quot; + resetToken;</span>
+
+<span class="fc" id="L29">        String htmlContent = &quot;&quot;&quot;</span>
+            &lt;!DOCTYPE html&gt;
+            &lt;html&gt;
+            &lt;head&gt;
+              &lt;meta charset=&quot;UTF-8&quot;&gt;
+              &lt;style&gt;
+                body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #0f172a; color: #e2e8f0; margin: 0; padding: 40px 20px; }
+                .card { max-width: 520px; margin: 0 auto; background: #1e293b; border-radius: 16px; padding: 32px; border: 1px solid #334155; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5); }
+                .logo { text-align: center; margin-bottom: 24px; }
+                .logo h1 { color: #14b8a6; font-size: 28px; margin: 0; }
+                .code-box { background: #0f172a; border: 2px solid #38bdf8; color: #38bdf8; font-size: 32px; font-weight: bold; letter-spacing: 6px; text-align: center; padding: 16px; border-radius: 12px; margin: 24px 0; }
+                .btn { display: block; width: 100%; max-width: 280px; margin: 24px auto; padding: 14px 24px; background: linear-gradient(135deg, #14b8a6, #06b6d4); color: #ffffff !important; text-align: center; text-decoration: none; font-weight: bold; border-radius: 10px; }
+                .footer { font-size: 12px; color: #64748b; text-align: center; margin-top: 32px; }
+              &lt;/style&gt;
+            &lt;/head&gt;
+            &lt;body&gt;
+              &lt;div class=&quot;card&quot;&gt;
+                &lt;div class=&quot;logo&quot;&gt;
+                  &lt;h1&gt;MedSuivi&lt;/h1&gt;
+                  &lt;p style=&quot;color: #94a3b8; font-size: 14px;&quot;&gt;Service de réinitialisation de mot de passe&lt;/p&gt;
+                &lt;/div&gt;
+                &lt;p&gt;Bonjour,&lt;/p&gt;
+                &lt;p&gt;Vous avez demandé la réinitialisation de votre mot de passe MedSuivi. Voici votre code de validation :&lt;/p&gt;
+
+                &lt;div class=&quot;code-box&quot;&gt;{{TOKEN}}&lt;/div&gt;
+
+                &lt;p style=&quot;text-align: center;&quot;&gt;Ou cliquez sur le bouton ci-dessous pour changer votre mot de passe :&lt;/p&gt;
+                &lt;a href=&quot;{{RESET_URL}}&quot; class=&quot;btn&quot;&gt;Réinitialiser le mot de passe&lt;/a&gt;
+
+                &lt;p style=&quot;font-size: 13px; color: #94a3b8;&quot;&gt;Ce code est valide pendant &lt;strong&gt;15 minutes&lt;/strong&gt;. Si vous n'avez pas demandé cette réinitialisation, veuillez ignorer cet e-mail.&lt;/p&gt;
+
+                &lt;div class=&quot;footer&quot;&gt;
+                  © 2025 MedSuivi — Plateforme pour professionnels de santé
+                &lt;/div&gt;
+              &lt;/div&gt;
+            &lt;/body&gt;
+            &lt;/html&gt;
+            &quot;&quot;&quot;
+<span class="fc" id="L67">            .replace(&quot;{{TOKEN}}&quot;, resetToken)</span>
+<span class="fc" id="L68">            .replace(&quot;{{RESET_URL}}&quot;, resetUrl);</span>
+
+        try {
+<span class="fc" id="L71">            MimeMessage message = mailSender.createMimeMessage();</span>
+<span class="fc" id="L72">            MimeMessageHelper helper = new MimeMessageHelper(message, true, &quot;UTF-8&quot;);</span>
+<span class="fc" id="L73">            helper.setFrom(FROM_ADDRESS);</span>
+<span class="fc" id="L74">            helper.setTo(toEmail);</span>
+<span class="fc" id="L75">            helper.setSubject(&quot;MedSuivi - Réinitialisation de votre mot de passe&quot;);</span>
+<span class="fc" id="L76">            helper.setText(htmlContent, true);</span>
+<span class="fc" id="L77">            mailSender.send(message);</span>
+<span class="nc" id="L78">        } catch (MessagingException e) {</span>
+<span class="nc" id="L79">            throw new EmailDeliveryException(</span>
+                    &quot;Impossible d'envoyer l'e-mail de réinitialisation. Vérifiez la configuration SMTP Mailtrap.&quot;,
+                    e);
+<span class="fc" id="L82">        }</span>
+<span class="fc" id="L83">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,183 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UserServiceImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">user-service</a> &gt; <a href="index.source.html" class="el_package">tn.esprit.user.service</a> &gt; <span class="el_source">UserServiceImpl.java</span></div><h1>UserServiceImpl.java</h1><pre class="source lang-java linenums">package tn.esprit.user.service;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import tn.esprit.user.dto.AuthResponseDTO;
+import tn.esprit.user.dto.LoginRequestDTO;
+import tn.esprit.user.dto.UserCreationDTO;
+import tn.esprit.user.dto.UserDTO;
+import tn.esprit.user.model.User;
+import tn.esprit.user.repository.UserRepository;
+import tn.esprit.user.security.JwtUtils;
+
+import tn.esprit.user.dto.ForgotPasswordRequestDTO;
+import tn.esprit.user.dto.ResetPasswordRequestDTO;
+import tn.esprit.user.exception.ResourceNotFoundException;
+
+import java.security.SecureRandom;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.List;
+
+@Service
+@Transactional
+public class UserServiceImpl implements UserService {
+
+<span class="fc" id="L28">    private static final SecureRandom RANDOM = new SecureRandom();</span>
+
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final JwtUtils jwtUtils;
+    private final EmailService emailService;
+
+    @Autowired
+<span class="fc" id="L36">    public UserServiceImpl(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtUtils jwtUtils, EmailService emailService) {</span>
+<span class="fc" id="L37">        this.userRepository = userRepository;</span>
+<span class="fc" id="L38">        this.passwordEncoder = passwordEncoder;</span>
+<span class="fc" id="L39">        this.jwtUtils = jwtUtils;</span>
+<span class="fc" id="L40">        this.emailService = emailService;</span>
+<span class="fc" id="L41">    }</span>
+
+    @Override
+    public UserDTO createUser(UserCreationDTO creationDTO) {
+<span class="fc bfc" id="L45" title="All 2 branches covered.">        if (userRepository.existsByUsername(creationDTO.getUsername())) {</span>
+<span class="fc" id="L46">            throw new IllegalArgumentException(&quot;Username is already taken&quot;);</span>
+        }
+<span class="fc bfc" id="L48" title="All 2 branches covered.">        if (userRepository.existsByEmail(creationDTO.getEmail())) {</span>
+<span class="fc" id="L49">            throw new IllegalArgumentException(&quot;Email is already registered&quot;);</span>
+        }
+
+<span class="fc" id="L52">        User user = User.builder()</span>
+<span class="fc" id="L53">                .username(creationDTO.getUsername())</span>
+<span class="fc" id="L54">                .email(creationDTO.getEmail())</span>
+<span class="fc" id="L55">                .password(passwordEncoder.encode(creationDTO.getPassword()))</span>
+<span class="fc" id="L56">                .firstName(creationDTO.getFirstName())</span>
+<span class="fc" id="L57">                .lastName(creationDTO.getLastName())</span>
+<span class="fc" id="L58">                .role(creationDTO.getRole())</span>
+<span class="fc" id="L59">                .phone(creationDTO.getPhone())</span>
+<span class="fc" id="L60">                .active(creationDTO.isActive())</span>
+<span class="fc" id="L61">                .build();</span>
+
+<span class="fc" id="L63">        User savedUser = userRepository.save(user);</span>
+<span class="fc" id="L64">        return mapToDTO(savedUser);</span>
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public AuthResponseDTO login(LoginRequestDTO loginRequest) {
+<span class="fc" id="L70">        String input = loginRequest.getUsernameOrEmail();</span>
+<span class="fc" id="L71">        User user = userRepository.findByUsername(input)</span>
+<span class="fc" id="L72">                .or(() -&gt; userRepository.findByEmail(input))</span>
+<span class="fc" id="L73">                .orElseThrow(() -&gt; new IllegalArgumentException(&quot;Invalid username/email or password&quot;));</span>
+
+<span class="fc bfc" id="L75" title="All 2 branches covered.">        if (!passwordEncoder.matches(loginRequest.getPassword(), user.getPassword())) {</span>
+<span class="fc" id="L76">            throw new IllegalArgumentException(&quot;Invalid username/email or password&quot;);</span>
+        }
+
+<span class="pc bpc" id="L79" title="1 of 2 branches missed.">        if (!user.isActive()) {</span>
+<span class="nc" id="L80">            throw new IllegalStateException(&quot;Account is inactive&quot;);</span>
+        }
+
+<span class="fc" id="L83">        String token = jwtUtils.generateToken(user.getUsername(), user.getRole().name(), user.getId());</span>
+
+<span class="fc" id="L85">        return AuthResponseDTO.builder()</span>
+<span class="fc" id="L86">                .token(token)</span>
+<span class="fc" id="L87">                .tokenType(&quot;Bearer&quot;)</span>
+<span class="fc" id="L88">                .user(mapToDTO(user))</span>
+<span class="fc" id="L89">                .build();</span>
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public UserDTO getUserById(Long id) {
+<span class="fc" id="L95">        User user = userRepository.findById(id)</span>
+<span class="fc" id="L96">                .orElseThrow(() -&gt; new ResourceNotFoundException(&quot;User not found with id: &quot; + id));</span>
+<span class="fc" id="L97">        return mapToDTO(user);</span>
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List&lt;UserDTO&gt; getAllUsers() {
+<span class="fc" id="L103">        return userRepository.findAll().stream()</span>
+<span class="fc" id="L104">                .map(this::mapToDTO)</span>
+<span class="fc" id="L105">                .toList();</span>
+    }
+
+    @Override
+    public UserDTO updateUser(Long id, UserDTO updateDTO) {
+<span class="fc" id="L110">        User user = userRepository.findById(id)</span>
+<span class="fc" id="L111">                .orElseThrow(() -&gt; new ResourceNotFoundException(&quot;User not found with id: &quot; + id));</span>
+
+<span class="pc bpc" id="L113" title="1 of 4 branches missed.">        if (!user.getUsername().equals(updateDTO.getUsername()) &amp;&amp; userRepository.existsByUsername(updateDTO.getUsername())) {</span>
+<span class="fc" id="L114">            throw new IllegalArgumentException(&quot;Username is already taken&quot;);</span>
+        }
+<span class="pc bpc" id="L116" title="1 of 4 branches missed.">        if (!user.getEmail().equals(updateDTO.getEmail()) &amp;&amp; userRepository.existsByEmail(updateDTO.getEmail())) {</span>
+<span class="fc" id="L117">            throw new IllegalArgumentException(&quot;Email is already registered&quot;);</span>
+        }
+
+<span class="fc" id="L120">        user.setUsername(updateDTO.getUsername());</span>
+<span class="fc" id="L121">        user.setEmail(updateDTO.getEmail());</span>
+<span class="fc" id="L122">        user.setFirstName(updateDTO.getFirstName());</span>
+<span class="fc" id="L123">        user.setLastName(updateDTO.getLastName());</span>
+<span class="fc" id="L124">        user.setRole(updateDTO.getRole());</span>
+<span class="fc" id="L125">        user.setPhone(updateDTO.getPhone());</span>
+<span class="fc" id="L126">        user.setProfilePictureUrl(updateDTO.getProfilePictureUrl());</span>
+<span class="fc" id="L127">        user.setActive(updateDTO.isActive());</span>
+
+<span class="fc" id="L129">        User updatedUser = userRepository.save(user);</span>
+<span class="fc" id="L130">        return mapToDTO(updatedUser);</span>
+    }
+
+    @Override
+    public void deleteUser(Long id) {
+<span class="fc bfc" id="L135" title="All 2 branches covered.">        if (!userRepository.existsById(id)) {</span>
+<span class="fc" id="L136">            throw new ResourceNotFoundException(&quot;User not found with id: &quot; + id);</span>
+        }
+<span class="fc" id="L138">        userRepository.deleteById(id);</span>
+<span class="fc" id="L139">    }</span>
+
+    @Override
+    public void processForgotPassword(ForgotPasswordRequestDTO requestDTO) {
+<span class="fc" id="L143">        User user = userRepository.findByEmail(requestDTO.getEmail())</span>
+<span class="fc" id="L144">                .orElseThrow(() -&gt; new IllegalArgumentException(&quot;Aucun utilisateur trouvé avec cet e-mail&quot;));</span>
+
+<span class="fc" id="L146">        String resetCode = String.format(&quot;%06d&quot;, RANDOM.nextInt(900000) + 100000);</span>
+<span class="fc" id="L147">        user.setResetToken(resetCode);</span>
+<span class="fc" id="L148">        user.setResetTokenExpiry(LocalDateTime.now(ZoneId.systemDefault()).plusMinutes(15));</span>
+<span class="fc" id="L149">        userRepository.save(user);</span>
+
+<span class="fc" id="L151">        emailService.sendPasswordResetEmail(user.getEmail(), resetCode);</span>
+<span class="fc" id="L152">    }</span>
+
+    @Override
+    public void resetPassword(ResetPasswordRequestDTO requestDTO) {
+<span class="fc" id="L156">        User user = userRepository.findByResetToken(requestDTO.getToken())</span>
+<span class="fc" id="L157">                .orElseThrow(() -&gt; new IllegalArgumentException(&quot;Code de réinitialisation invalide ou introuvable.&quot;));</span>
+
+<span class="pc bpc" id="L159" title="1 of 4 branches missed.">        if (user.getResetTokenExpiry() == null || user.getResetTokenExpiry().isBefore(LocalDateTime.now(ZoneId.systemDefault()))) {</span>
+<span class="fc" id="L160">            throw new IllegalArgumentException(&quot;Le code de réinitialisation a expiré. Veuillez en demander un nouveau.&quot;);</span>
+        }
+
+<span class="fc" id="L163">        user.setPassword(passwordEncoder.encode(requestDTO.getNewPassword()));</span>
+<span class="fc" id="L164">        user.setResetToken(null);</span>
+<span class="fc" id="L165">        user.setResetTokenExpiry(null);</span>
+<span class="fc" id="L166">        userRepository.save(user);</span>
+<span class="fc" id="L167">    }</span>
+
+    private UserDTO mapToDTO(User user) {
+<span class="fc" id="L170">        return UserDTO.builder()</span>
+<span class="fc" id="L171">                .id(user.getId())</span>
+<span class="fc" id="L172">                .username(user.getUsername())</span>
+<span class="fc" id="L173">                .email(user.getEmail())</span>
+<span class="fc" id="L174">                .firstName(user.getFirstName())</span>
+<span class="fc" id="L175">                .lastName(user.getLastName())</span>
+<span class="fc" id="L176">                .role(user.getRole())</span>
+<span class="fc" id="L177">                .phone(user.getPhone())</span>
+<span class="fc" id="L178">                .profilePictureUrl(user.getProfilePictureUrl())</span>
+<span class="fc" id="L179">                .active(user.isActive())</span>
+<span class="fc" id="L180">                .build();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

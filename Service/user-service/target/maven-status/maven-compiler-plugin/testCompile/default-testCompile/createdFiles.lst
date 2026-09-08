@@ -1,0 +1,6 @@
+tn\esprit\user\service\EmailServiceTest.class
+tn\esprit\user\security\JwtUtilsTest.class
+tn\esprit\user\service\UserServiceImplTest.class
+tn\esprit\user\controller\AuthControllerTest.class
+tn\esprit\user\controller\UserControllerTest.class
+tn\esprit\user\exception\GlobalExceptionHandlerTest.class

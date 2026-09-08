@@ -1,5 +1,7 @@
 package tn.esprit.patient.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tn.esprit.patient.dto.MesureCreationDTO;
@@ -15,6 +17,8 @@ import java.util.List;
 @Service
 @Transactional
 public class MesureServiceImpl implements MesureService {
+
+    private static final Logger log = LoggerFactory.getLogger(MesureServiceImpl.class);
 
     private final MesureRepository mesureRepository;
     private final PatientRepository patientRepository;
@@ -50,7 +54,7 @@ public class MesureServiceImpl implements MesureService {
             predictServiceClient.predictRisk(dto.getPatientId());
         } catch (Exception e) {
             // Log or ignore ML service connection errors so measurement saving succeeds
-            System.err.println("Could not auto-predict risk for patient " + dto.getPatientId() + ": " + e.getMessage());
+            log.error("Could not auto-predict risk for patient {}: {}", dto.getPatientId(), e.getMessage());
         }
 
         return mapToDTO(savedMesure);
