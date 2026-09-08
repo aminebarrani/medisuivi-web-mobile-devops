@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PatientController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">patient-service</a> &gt; <a href="index.source.html" class="el_package">tn.esprit.patient.controller</a> &gt; <span class="el_source">PatientController.java</span></div><h1>PatientController.java</h1><pre class="source lang-java linenums">package tn.esprit.patient.controller;
+
+import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import tn.esprit.patient.dto.PatientCreationDTO;
+import tn.esprit.patient.dto.PatientDTO;
+import tn.esprit.patient.model.NiveauRisque;
+import tn.esprit.patient.service.PatientService;
+
+import java.util.List;
+
+@RestController
+@RequestMapping(&quot;/patients&quot;)
+public class PatientController {
+
+    private final PatientService patientService;
+
+<span class="fc" id="L20">    public PatientController(PatientService patientService) {</span>
+<span class="fc" id="L21">        this.patientService = patientService;</span>
+<span class="fc" id="L22">    }</span>
+
+    @PostMapping
+    public ResponseEntity&lt;PatientDTO&gt; create(@Valid @RequestBody PatientCreationDTO dto) {
+<span class="fc" id="L26">        return new ResponseEntity&lt;&gt;(patientService.create(dto), HttpStatus.CREATED);</span>
+    }
+
+    @GetMapping
+    public ResponseEntity&lt;List&lt;PatientDTO&gt;&gt; getAll() {
+<span class="nc" id="L31">        return ResponseEntity.ok(patientService.getAll());</span>
+    }
+
+    @GetMapping(&quot;/{id}&quot;)
+    public ResponseEntity&lt;PatientDTO&gt; getById(@PathVariable Long id) {
+<span class="fc" id="L36">        return ResponseEntity.ok(patientService.getById(id));</span>
+    }
+
+    @GetMapping(&quot;/user/{userId}&quot;)
+    public ResponseEntity&lt;PatientDTO&gt; getByUserId(@PathVariable Long userId) {
+<span class="nc" id="L41">        return ResponseEntity.ok(patientService.getByUserId(userId));</span>
+    }
+
+    @GetMapping(&quot;/medecin/{medecinId}&quot;)
+    public ResponseEntity&lt;List&lt;PatientDTO&gt;&gt; getByMedecinId(@PathVariable Long medecinId) {
+<span class="nc" id="L46">        return ResponseEntity.ok(patientService.getByMedecinId(medecinId));</span>
+    }
+
+    @PutMapping(&quot;/{id}&quot;)
+    public ResponseEntity&lt;PatientDTO&gt; update(@PathVariable Long id, @Valid @RequestBody PatientDTO dto) {
+<span class="nc" id="L51">        return ResponseEntity.ok(patientService.update(id, dto));</span>
+    }
+
+    @PatchMapping(&quot;/{id}/niveau-risque&quot;)
+    public ResponseEntity&lt;PatientDTO&gt; updateNiveauRisque(
+            @PathVariable Long id,
+            @RequestParam NiveauRisque niveauRisque) {
+<span class="nc" id="L58">        return ResponseEntity.ok(patientService.updateNiveauRisque(id, niveauRisque));</span>
+    }
+
+    @DeleteMapping(&quot;/{id}&quot;)
+    public ResponseEntity&lt;Void&gt; delete(@PathVariable Long id) {
+<span class="nc" id="L63">        patientService.delete(id);</span>
+<span class="nc" id="L64">        return ResponseEntity.noContent().build();</span>
+    }
+
+    @PostMapping(&quot;/{id}/predict-risk&quot;)
+    public ResponseEntity&lt;tn.esprit.patient.dto.PredictResponseDTO&gt; predictRisk(@PathVariable Long id) {
+<span class="nc" id="L69">        return ResponseEntity.ok(patientService.predictPatientRisk(id));</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

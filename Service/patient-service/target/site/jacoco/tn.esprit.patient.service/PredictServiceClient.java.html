@@ -1,0 +1,346 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PredictServiceClient.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">patient-service</a> &gt; <a href="index.source.html" class="el_package">tn.esprit.patient.service</a> &gt; <span class="el_source">PredictServiceClient.java</span></div><h1>PredictServiceClient.java</h1><pre class="source lang-java linenums">package tn.esprit.patient.service;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+import tn.esprit.patient.dto.PredictRequestDTO;
+import tn.esprit.patient.dto.PredictResponseDTO;
+import tn.esprit.patient.model.*;
+import tn.esprit.patient.repository.*;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
+import java.util.*;
+
+@Service
+public class PredictServiceClient {
+
+<span class="fc" id="L22">    private static final Logger log = LoggerFactory.getLogger(PredictServiceClient.class);</span>
+
+    private static final String GRAVITE_FAIBLE = &quot;FAIBLE&quot;;
+    private static final String GRAVITE_MODERE = &quot;MODERE&quot;;
+    private static final String GRAVITE_GRAVE = &quot;GRAVE&quot;;
+    private static final String DISEASE_DIABETE = &quot;DIABETE&quot;;
+
+    private final PatientRepository patientRepository;
+    private final PatientMaladieRepository patientMaladieRepository;
+    private final MaladieRepository maladieRepository;
+    private final MesureRepository mesureRepository;
+    private final SymptomeRepository symptomeRepository;
+    private final RestTemplate restTemplate;
+
+    @Value(&quot;${ml.service.url:http://localhost:8000}&quot;)
+    private String mlServiceUrl;
+
+    public PredictServiceClient(PatientRepository patientRepository,
+                                PatientMaladieRepository patientMaladieRepository,
+                                MaladieRepository maladieRepository,
+                                MesureRepository mesureRepository,
+<span class="fc" id="L43">                                SymptomeRepository symptomeRepository) {</span>
+<span class="fc" id="L44">        this.patientRepository = patientRepository;</span>
+<span class="fc" id="L45">        this.patientMaladieRepository = patientMaladieRepository;</span>
+<span class="fc" id="L46">        this.maladieRepository = maladieRepository;</span>
+<span class="fc" id="L47">        this.mesureRepository = mesureRepository;</span>
+<span class="fc" id="L48">        this.symptomeRepository = symptomeRepository;</span>
+<span class="fc" id="L49">        this.restTemplate = new RestTemplate();</span>
+<span class="fc" id="L50">    }</span>
+
+    public PredictResponseDTO predictRisk(Long patientId) {
+<span class="fc" id="L53">        Patient patient = patientRepository.findById(patientId)</span>
+<span class="fc" id="L54">                .orElseThrow(() -&gt; new IllegalArgumentException(&quot;Patient not found with id: &quot; + patientId));</span>
+
+<span class="fc" id="L56">        PredictRequestDTO requestPayload = buildRequestPayload(patient);</span>
+<span class="fc" id="L57">        String url = mlServiceUrl + &quot;/predict&quot;;</span>
+
+        try {
+<span class="fc" id="L60">            PredictResponseDTO response = restTemplate.postForObject(url, requestPayload, PredictResponseDTO.class);</span>
+
+<span class="pc bpc" id="L62" title="1 of 4 branches missed.">            if (response != null &amp;&amp; response.getGravite() != null) {</span>
+                // Map FastAPI classification to local NiveauRisque
+<span class="fc" id="L64">                NiveauRisque updatedRisque = mapToNiveauRisque(response.getGravite());</span>
+<span class="fc" id="L65">                patient.setNiveauRisque(updatedRisque);</span>
+<span class="fc" id="L66">                patientRepository.save(patient);</span>
+<span class="fc" id="L67">                return response;</span>
+            }
+<span class="fc" id="L69">        } catch (Exception e) {</span>
+<span class="fc" id="L70">            log.warn(&quot;Predict service connection/execution note: {} - Falling back to clinical rule-based evaluation.&quot;, e.getMessage());</span>
+<span class="fc" id="L71">        }</span>
+
+        // Clinical heuristic evaluation fallback when ML service is unavailable or error occurs
+<span class="fc" id="L74">        return evaluateRuleBasedRisk(patient, requestPayload);</span>
+    }
+
+    private PredictResponseDTO evaluateRuleBasedRisk(Patient patient, PredictRequestDTO payload) {
+<span class="fc" id="L78">        double dev = payload.getDeviationScore();</span>
+<span class="fc" id="L79">        double symptoms = payload.getNbSymptomesRecents7j();</span>
+        String gravite;
+<span class="fc" id="L81">        Map&lt;String, Double&gt; probs = new HashMap&lt;&gt;();</span>
+
+<span class="pc bpc" id="L83" title="1 of 4 branches missed.">        if (dev &gt; 0.4 || symptoms &gt;= 3) {</span>
+<span class="fc" id="L84">            gravite = GRAVITE_GRAVE;</span>
+<span class="fc" id="L85">            probs.put(GRAVITE_FAIBLE, 0.05);</span>
+<span class="fc" id="L86">            probs.put(GRAVITE_MODERE, 0.25);</span>
+<span class="fc" id="L87">            probs.put(GRAVITE_GRAVE, 0.70);</span>
+<span class="pc bpc" id="L88" title="1 of 4 branches missed.">        } else if (dev &gt; 0.15 || symptoms &gt;= 1) {</span>
+<span class="fc" id="L89">            gravite = GRAVITE_MODERE;</span>
+<span class="fc" id="L90">            probs.put(GRAVITE_FAIBLE, 0.20);</span>
+<span class="fc" id="L91">            probs.put(GRAVITE_MODERE, 0.65);</span>
+<span class="fc" id="L92">            probs.put(GRAVITE_GRAVE, 0.15);</span>
+        } else {
+<span class="fc" id="L94">            gravite = GRAVITE_FAIBLE;</span>
+<span class="fc" id="L95">            probs.put(GRAVITE_FAIBLE, 0.85);</span>
+<span class="fc" id="L96">            probs.put(GRAVITE_MODERE, 0.12);</span>
+<span class="fc" id="L97">            probs.put(GRAVITE_GRAVE, 0.03);</span>
+        }
+
+<span class="fc" id="L100">        NiveauRisque updatedRisque = mapToNiveauRisque(gravite);</span>
+<span class="fc" id="L101">        patient.setNiveauRisque(updatedRisque);</span>
+<span class="fc" id="L102">        patientRepository.save(patient);</span>
+
+<span class="fc" id="L104">        return PredictResponseDTO.builder()</span>
+<span class="fc" id="L105">                .gravite(gravite)</span>
+<span class="fc" id="L106">                .probabilities(probs)</span>
+<span class="fc" id="L107">                .build();</span>
+    }
+
+
+    private PredictRequestDTO buildRequestPayload(Patient patient) {
+<span class="fc" id="L112">        double age = ChronoUnit.YEARS.between(patient.getDateNaissance(), LocalDate.now(ZoneId.systemDefault()));</span>
+<span class="fc bfc" id="L113" title="All 2 branches covered.">        String sexe = patient.getSexe() == Sexe.M ? &quot;HOMME&quot; : &quot;FEMME&quot;;</span>
+
+<span class="fc" id="L115">        DiseaseInfo diseaseInfo = extractDiseaseInfo(patient.getId());</span>
+<span class="fc" id="L116">        MeasurementStats stats = extractMeasurementStats(patient.getId(), diseaseInfo);</span>
+<span class="fc" id="L117">        double nbSymptomesRecents7j = countRecentSymptoms(patient.getId());</span>
+
+<span class="fc" id="L119">        return PredictRequestDTO.builder()</span>
+<span class="fc" id="L120">                .age(age)</span>
+<span class="fc" id="L121">                .sexe(sexe)</span>
+<span class="fc" id="L122">                .disease(diseaseInfo.name)</span>
+<span class="fc" id="L123">                .joursDepuisDiagnostic(diseaseInfo.daysSinceDiagnosis)</span>
+<span class="fc" id="L124">                .valeurMesureProche(stats.valeurMesureProche)</span>
+<span class="fc" id="L125">                .deviationScore(stats.deviationScore)</span>
+<span class="fc" id="L126">                .rollingMean14j(stats.rollingMean14j)</span>
+<span class="fc" id="L127">                .rollingStd14j(stats.rollingStd14j)</span>
+<span class="fc" id="L128">                .trendSlope14j(stats.trendSlope14j)</span>
+<span class="fc" id="L129">                .nbSymptomesRecents7j(nbSymptomesRecents7j)</span>
+<span class="fc" id="L130">                .build();</span>
+    }
+
+    private DiseaseInfo extractDiseaseInfo(Long patientId) {
+<span class="fc" id="L134">        List&lt;PatientMaladie&gt; patientMaladies = patientMaladieRepository.findByPatientId(patientId);</span>
+<span class="pc bpc" id="L135" title="1 of 4 branches missed.">        if (patientMaladies == null || patientMaladies.isEmpty()) {</span>
+<span class="fc" id="L136">            return new DiseaseInfo(DISEASE_DIABETE, 0.0, null, null);</span>
+        }
+
+<span class="fc" id="L139">        List&lt;PatientMaladie&gt; sortedMaladies = new ArrayList&lt;&gt;(patientMaladies);</span>
+<span class="pc" id="L140">        sortedMaladies.sort((pm1, pm2) -&gt; pm2.getDateDiagnostic().compareTo(pm1.getDateDiagnostic()));</span>
+<span class="fc" id="L141">        PatientMaladie latestPm = sortedMaladies.get(0);</span>
+<span class="fc" id="L142">        Optional&lt;Maladie&gt; maladieOpt = maladieRepository.findById(latestPm.getMaladieId());</span>
+
+<span class="fc" id="L144">        String diseaseName = DISEASE_DIABETE;</span>
+<span class="fc" id="L145">        Double minThreshold = null;</span>
+<span class="fc" id="L146">        Double maxThreshold = null;</span>
+
+<span class="pc bpc" id="L148" title="1 of 2 branches missed.">        if (maladieOpt.isPresent()) {</span>
+<span class="fc" id="L149">            Maladie m = maladieOpt.get();</span>
+<span class="fc" id="L150">            minThreshold = m.getSeuilMin();</span>
+<span class="fc" id="L151">            maxThreshold = m.getSeuilMax();</span>
+<span class="fc" id="L152">            diseaseName = normalizeDiseaseName(m.getNom());</span>
+        }
+
+<span class="fc" id="L155">        double daysSince = ChronoUnit.DAYS.between(latestPm.getDateDiagnostic(), LocalDate.now(ZoneId.systemDefault()));</span>
+<span class="fc" id="L156">        return new DiseaseInfo(diseaseName, daysSince, minThreshold, maxThreshold);</span>
+    }
+
+    private MeasurementStats extractMeasurementStats(Long patientId, DiseaseInfo diseaseInfo) {
+<span class="fc" id="L160">        List&lt;Mesure&gt; allMesures = mesureRepository.findByPatientIdOrderByDateMesureDesc(patientId);</span>
+<span class="fc bfc" id="L161" title="All 2 branches covered.">        if (allMesures.isEmpty()) {</span>
+<span class="fc" id="L162">            return MeasurementStats.defaultStats();</span>
+        }
+
+<span class="fc" id="L165">        TypeMesure targetType = determineTargetType(diseaseInfo.name, allMesures.get(0).getTypeMesure());</span>
+<span class="fc" id="L166">        List&lt;Mesure&gt; typeMesures = mesureRepository.findByPatientIdAndTypeMesureOrderByDateMesureDesc(patientId, targetType);</span>
+<span class="pc bpc" id="L167" title="1 of 2 branches missed.">        if (typeMesures.isEmpty()) {</span>
+<span class="nc" id="L168">            targetType = allMesures.get(0).getTypeMesure();</span>
+<span class="nc" id="L169">            typeMesures = mesureRepository.findByPatientIdAndTypeMesureOrderByDateMesureDesc(patientId, targetType);</span>
+        }
+
+<span class="pc bpc" id="L172" title="1 of 2 branches missed.">        if (typeMesures.isEmpty()) {</span>
+<span class="nc" id="L173">            return MeasurementStats.defaultStats();</span>
+        }
+
+<span class="fc" id="L176">        Mesure latestMesure = typeMesures.get(0);</span>
+<span class="fc" id="L177">        double valeurMesureProche = latestMesure.getValeur();</span>
+<span class="fc" id="L178">        double deviationScore = calculateDeviation(valeurMesureProche, targetType, diseaseInfo.minThreshold, diseaseInfo.maxThreshold);</span>
+
+<span class="fc" id="L180">        return calculateRollingStats(typeMesures, valeurMesureProche, deviationScore);</span>
+    }
+
+    private double calculateDeviation(double value, TypeMesure targetType, Double minThreshold, Double maxThreshold) {
+<span class="fc" id="L184">        double[] minMax = getThresholds(targetType, minThreshold, maxThreshold);</span>
+<span class="fc" id="L185">        double min = minMax[0];</span>
+<span class="fc" id="L186">        double max = minMax[1];</span>
+<span class="pc bpc" id="L187" title="1 of 2 branches missed.">        if (value &lt; min) {</span>
+<span class="nc" id="L188">            return (min - value) / min;</span>
+<span class="fc bfc" id="L189" title="All 2 branches covered.">        } else if (value &gt; max) {</span>
+<span class="fc" id="L190">            return (value - max) / max;</span>
+        }
+<span class="fc" id="L192">        return 0.0;</span>
+    }
+
+    private MeasurementStats calculateRollingStats(List&lt;Mesure&gt; typeMesures, double latestValue, double deviationScore) {
+<span class="fc" id="L196">        LocalDateTime cutoff = LocalDateTime.now(ZoneId.systemDefault()).minusDays(14);</span>
+<span class="fc" id="L197">        List&lt;Mesure&gt; recentMesures = typeMesures.stream()</span>
+<span class="pc bpc" id="L198" title="1 of 4 branches missed.">                .filter(m -&gt; m.getDateMesure() != null &amp;&amp; m.getDateMesure().isAfter(cutoff))</span>
+<span class="fc" id="L199">                .toList();</span>
+
+<span class="fc bfc" id="L201" title="All 2 branches covered.">        if (recentMesures.isEmpty()) {</span>
+<span class="fc" id="L202">            recentMesures = typeMesures.subList(0, Math.min(typeMesures.size(), 14));</span>
+        }
+
+<span class="pc bpc" id="L205" title="1 of 2 branches missed.">        if (recentMesures.isEmpty()) {</span>
+<span class="nc" id="L206">            return new MeasurementStats(latestValue, deviationScore, latestValue, 0.0, 0.0);</span>
+        }
+
+<span class="fc" id="L209">        double sum = 0.0;</span>
+<span class="fc bfc" id="L210" title="All 2 branches covered.">        for (Mesure m : recentMesures) {</span>
+<span class="fc" id="L211">            sum += m.getValeur();</span>
+<span class="fc" id="L212">        }</span>
+<span class="fc" id="L213">        double rollingMean = sum / recentMesures.size();</span>
+
+<span class="fc bfc" id="L215" title="All 2 branches covered.">        if (recentMesures.size() &lt;= 1) {</span>
+<span class="fc" id="L216">            return new MeasurementStats(latestValue, deviationScore, rollingMean, 0.0, 0.0);</span>
+        }
+
+<span class="fc" id="L219">        double rollingStd = calculateStandardDeviation(recentMesures, rollingMean);</span>
+<span class="fc" id="L220">        double trendSlope = calculateTrendSlope(recentMesures);</span>
+
+<span class="fc" id="L222">        return new MeasurementStats(latestValue, deviationScore, rollingMean, rollingStd, trendSlope);</span>
+    }
+
+    private double calculateStandardDeviation(List&lt;Mesure&gt; mesures, double mean) {
+<span class="fc" id="L226">        double varianceSum = 0.0;</span>
+<span class="fc bfc" id="L227" title="All 2 branches covered.">        for (Mesure m : mesures) {</span>
+<span class="fc" id="L228">            varianceSum += Math.pow(m.getValeur() - mean, 2);</span>
+<span class="fc" id="L229">        }</span>
+<span class="fc" id="L230">        return Math.sqrt(varianceSum / (mesures.size() - 1));</span>
+    }
+
+    private double calculateTrendSlope(List&lt;Mesure&gt; mesures) {
+<span class="fc" id="L234">        List&lt;Mesure&gt; chronological = new ArrayList&lt;&gt;(mesures);</span>
+<span class="fc" id="L235">        chronological.sort(Comparator.comparing(Mesure::getDateMesure));</span>
+<span class="fc" id="L236">        Mesure first = chronological.get(0);</span>
+<span class="fc" id="L237">        Mesure last = chronological.get(chronological.size() - 1);</span>
+<span class="fc" id="L238">        double valDiff = last.getValeur() - first.getValeur();</span>
+<span class="fc" id="L239">        double hoursDiff = ChronoUnit.HOURS.between(first.getDateMesure(), last.getDateMesure());</span>
+<span class="fc" id="L240">        double daysDiff = hoursDiff / 24.0;</span>
+<span class="pc bpc" id="L241" title="1 of 2 branches missed.">        return daysDiff &gt; 0.01 ? valDiff / daysDiff : valDiff;</span>
+    }
+
+    private double countRecentSymptoms(Long patientId) {
+<span class="fc" id="L245">        LocalDateTime symptomCutoff = LocalDateTime.now(ZoneId.systemDefault()).minusDays(7);</span>
+<span class="fc" id="L246">        List&lt;Symptome&gt; symptomes = symptomeRepository.findByPatientIdOrderByDateSignalementDesc(patientId);</span>
+<span class="fc" id="L247">        return symptomes.stream()</span>
+<span class="pc bpc" id="L248" title="2 of 4 branches missed.">                .filter(s -&gt; s.getDateSignalement() != null &amp;&amp; s.getDateSignalement().isAfter(symptomCutoff))</span>
+<span class="fc" id="L249">                .count();</span>
+    }
+
+    private String normalizeDiseaseName(String rawNom) {
+<span class="pc bpc" id="L253" title="1 of 2 branches missed.">        if (rawNom == null) return DISEASE_DIABETE;</span>
+<span class="fc" id="L254">        String upper = rawNom.toUpperCase();</span>
+<span class="fc bfc" id="L255" title="All 2 branches covered.">        if (upper.contains(&quot;DIAB&quot;)) return DISEASE_DIABETE;</span>
+<span class="pc bpc" id="L256" title="3 of 4 branches missed.">        if (upper.contains(&quot;HYPER&quot;) || upper.contains(&quot;TENS&quot;)) return &quot;HYPERTENSION&quot;;</span>
+<span class="nc bnc" id="L257" title="All 2 branches missed.">        if (upper.contains(&quot;ASTH&quot;)) return &quot;ASTHME&quot;;</span>
+<span class="nc bnc" id="L258" title="All 6 branches missed.">        if (upper.contains(&quot;CARD&quot;) || upper.contains(&quot;INSUFF&quot;) || upper.contains(&quot;COEUR&quot;)) return &quot;INSUFFISANCE_CARDIAQUE&quot;;</span>
+<span class="nc" id="L259">        return DISEASE_DIABETE;</span>
+    }
+
+    private TypeMesure determineTargetType(String diseaseName, TypeMesure fallback) {
+<span class="pc bpc" id="L263" title="3 of 5 branches missed.">        switch (diseaseName) {</span>
+            case DISEASE_DIABETE:
+<span class="fc" id="L265">                return TypeMesure.GLYCEMIE;</span>
+            case &quot;HYPERTENSION&quot;:
+<span class="fc" id="L267">                return TypeMesure.TENSION;</span>
+            case &quot;ASTHME&quot;:
+<span class="nc" id="L269">                return TypeMesure.SPO2;</span>
+            case &quot;INSUFFISANCE_CARDIAQUE&quot;:
+<span class="nc" id="L271">                return TypeMesure.FREQUENCE_CARDIAQUE;</span>
+            default:
+<span class="nc bnc" id="L273" title="All 2 branches missed.">                return fallback != null ? fallback : TypeMesure.GLYCEMIE;</span>
+        }
+    }
+
+    private double[] getThresholds(TypeMesure type, Double customMin, Double customMax) {
+<span class="pc bpc" id="L278" title="1 of 4 branches missed.">        if (customMin != null &amp;&amp; customMax != null) {</span>
+<span class="fc" id="L279">            return new double[]{customMin, customMax};</span>
+        }
+<span class="pc bpc" id="L281" title="1 of 2 branches missed.">        if (type == null) return new double[]{70.0, 140.0};</span>
+<span class="pc bpc" id="L282" title="5 of 7 branches missed.">        switch (type) {</span>
+            case GLYCEMIE:
+<span class="fc" id="L284">                return new double[]{70.0, 140.0};</span>
+            case TENSION:
+<span class="fc" id="L286">                return new double[]{90.0, 140.0};</span>
+            case SPO2:
+<span class="nc" id="L288">                return new double[]{95.0, 100.0};</span>
+            case FREQUENCE_CARDIAQUE:
+<span class="nc" id="L290">                return new double[]{60.0, 100.0};</span>
+            case TEMPERATURE:
+<span class="nc" id="L292">                return new double[]{36.5, 37.5};</span>
+            case POIDS:
+<span class="nc" id="L294">                return new double[]{50.0, 100.0};</span>
+            default:
+<span class="nc" id="L296">                return new double[]{70.0, 140.0};</span>
+        }
+    }
+
+    private NiveauRisque mapToNiveauRisque(String gravite) {
+<span class="fc bfc" id="L301" title="All 3 branches covered.">        switch (gravite.toUpperCase()) {</span>
+            case GRAVITE_FAIBLE:
+<span class="fc" id="L303">                return NiveauRisque.FAIBLE;</span>
+            case GRAVITE_MODERE:
+<span class="fc" id="L305">                return NiveauRisque.MODERE;</span>
+            case GRAVITE_GRAVE:
+            default:
+<span class="fc" id="L308">                return NiveauRisque.ELEVE;</span>
+        }
+    }
+
+    private static class DiseaseInfo {
+        final String name;
+        final double daysSinceDiagnosis;
+        final Double minThreshold;
+        final Double maxThreshold;
+
+<span class="fc" id="L318">        DiseaseInfo(String name, double daysSinceDiagnosis, Double minThreshold, Double maxThreshold) {</span>
+<span class="fc" id="L319">            this.name = name;</span>
+<span class="fc" id="L320">            this.daysSinceDiagnosis = daysSinceDiagnosis;</span>
+<span class="fc" id="L321">            this.minThreshold = minThreshold;</span>
+<span class="fc" id="L322">            this.maxThreshold = maxThreshold;</span>
+<span class="fc" id="L323">        }</span>
+    }
+
+    private static class MeasurementStats {
+        final double valeurMesureProche;
+        final double deviationScore;
+        final double rollingMean14j;
+        final double rollingStd14j;
+        final double trendSlope14j;
+
+<span class="fc" id="L333">        MeasurementStats(double valeurMesureProche, double deviationScore, double rollingMean14j, double rollingStd14j, double trendSlope14j) {</span>
+<span class="fc" id="L334">            this.valeurMesureProche = valeurMesureProche;</span>
+<span class="fc" id="L335">            this.deviationScore = deviationScore;</span>
+<span class="fc" id="L336">            this.rollingMean14j = rollingMean14j;</span>
+<span class="fc" id="L337">            this.rollingStd14j = rollingStd14j;</span>
+<span class="fc" id="L338">            this.trendSlope14j = trendSlope14j;</span>
+<span class="fc" id="L339">        }</span>
+
+        static MeasurementStats defaultStats() {
+<span class="fc" id="L342">            return new MeasurementStats(100.0, 0.0, 100.0, 0.0, 0.0);</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

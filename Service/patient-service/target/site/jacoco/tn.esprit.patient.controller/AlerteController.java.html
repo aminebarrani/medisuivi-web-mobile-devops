@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AlerteController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">patient-service</a> &gt; <a href="index.source.html" class="el_package">tn.esprit.patient.controller</a> &gt; <span class="el_source">AlerteController.java</span></div><h1>AlerteController.java</h1><pre class="source lang-java linenums">package tn.esprit.patient.controller;
+
+import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import tn.esprit.patient.dto.AlerteCreationDTO;
+import tn.esprit.patient.dto.AlerteDTO;
+import tn.esprit.patient.service.AlerteService;
+
+import java.util.List;
+
+@RestController
+@RequestMapping(&quot;/alertes&quot;)
+public class AlerteController {
+
+    private final AlerteService alerteService;
+
+<span class="fc" id="L19">    public AlerteController(AlerteService alerteService) {</span>
+<span class="fc" id="L20">        this.alerteService = alerteService;</span>
+<span class="fc" id="L21">    }</span>
+
+    @PostMapping
+    public ResponseEntity&lt;AlerteDTO&gt; create(@Valid @RequestBody AlerteCreationDTO dto) {
+<span class="fc" id="L25">        return new ResponseEntity&lt;&gt;(alerteService.create(dto), HttpStatus.CREATED);</span>
+    }
+
+    @GetMapping(&quot;/{id}&quot;)
+    public ResponseEntity&lt;AlerteDTO&gt; getById(@PathVariable Long id) {
+<span class="nc" id="L30">        return ResponseEntity.ok(alerteService.getById(id));</span>
+    }
+
+    @GetMapping(&quot;/patient/{patientId}&quot;)
+    public ResponseEntity&lt;List&lt;AlerteDTO&gt;&gt; getByPatientId(@PathVariable Long patientId) {
+<span class="nc" id="L35">        return ResponseEntity.ok(alerteService.getByPatientId(patientId));</span>
+    }
+
+    @GetMapping(&quot;/medecin/{medecinId}&quot;)
+    public ResponseEntity&lt;List&lt;AlerteDTO&gt;&gt; getByMedecinId(@PathVariable Long medecinId) {
+<span class="nc" id="L40">        return ResponseEntity.ok(alerteService.getByMedecinId(medecinId));</span>
+    }
+
+    @GetMapping
+    public ResponseEntity&lt;List&lt;AlerteDTO&gt;&gt; getByTraitee(@RequestParam(required = false) Boolean traitee) {
+<span class="nc bnc" id="L45" title="All 2 branches missed.">        if (traitee != null) {</span>
+<span class="nc" id="L46">            return ResponseEntity.ok(alerteService.getByTraitee(traitee));</span>
+        }
+<span class="nc" id="L48">        return ResponseEntity.ok(alerteService.getByTraitee(false));</span>
+    }
+
+    @PatchMapping(&quot;/{id}/traiter&quot;)
+    public ResponseEntity&lt;AlerteDTO&gt; markAsTraitee(@PathVariable Long id) {
+<span class="fc" id="L53">        return ResponseEntity.ok(alerteService.markAsTraitee(id));</span>
+    }
+
+    @DeleteMapping(&quot;/{id}&quot;)
+    public ResponseEntity&lt;Void&gt; delete(@PathVariable Long id) {
+<span class="nc" id="L58">        alerteService.delete(id);</span>
+<span class="nc" id="L59">        return ResponseEntity.noContent().build();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

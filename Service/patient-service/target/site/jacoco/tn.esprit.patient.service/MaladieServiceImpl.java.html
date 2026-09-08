@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MaladieServiceImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">patient-service</a> &gt; <a href="index.source.html" class="el_package">tn.esprit.patient.service</a> &gt; <span class="el_source">MaladieServiceImpl.java</span></div><h1>MaladieServiceImpl.java</h1><pre class="source lang-java linenums">package tn.esprit.patient.service;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import tn.esprit.patient.dto.MaladieCreationDTO;
+import tn.esprit.patient.dto.MaladieDTO;
+import tn.esprit.patient.exception.ResourceNotFoundException;
+import tn.esprit.patient.model.Maladie;
+import tn.esprit.patient.repository.MaladieRepository;
+
+import java.util.List;
+
+@Service
+@Transactional
+public class MaladieServiceImpl implements MaladieService {
+
+    private final MaladieRepository maladieRepository;
+
+<span class="fc" id="L19">    public MaladieServiceImpl(MaladieRepository maladieRepository) {</span>
+<span class="fc" id="L20">        this.maladieRepository = maladieRepository;</span>
+<span class="fc" id="L21">    }</span>
+
+    @Override
+    public MaladieDTO create(MaladieCreationDTO dto) {
+<span class="fc bfc" id="L25" title="All 2 branches covered.">        if (maladieRepository.existsByNom(dto.getNom())) {</span>
+<span class="fc" id="L26">            throw new IllegalArgumentException(&quot;Maladie already exists: &quot; + dto.getNom());</span>
+        }
+
+<span class="fc" id="L29">        Maladie maladie = Maladie.builder()</span>
+<span class="fc" id="L30">                .nom(dto.getNom())</span>
+<span class="fc" id="L31">                .description(dto.getDescription())</span>
+<span class="fc" id="L32">                .parametresSuivis(dto.getParametresSuivis())</span>
+<span class="fc" id="L33">                .seuilMin(dto.getSeuilMin())</span>
+<span class="fc" id="L34">                .seuilMax(dto.getSeuilMax())</span>
+<span class="fc" id="L35">                .build();</span>
+
+<span class="fc" id="L37">        return mapToDTO(maladieRepository.save(maladie));</span>
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public MaladieDTO getById(Long id) {
+<span class="fc" id="L43">        return mapToDTO(findMaladie(id));</span>
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List&lt;MaladieDTO&gt; getAll() {
+<span class="fc" id="L49">        return maladieRepository.findAll().stream().map(this::mapToDTO).toList();</span>
+    }
+
+    @Override
+    public MaladieDTO update(Long id, MaladieDTO dto) {
+<span class="fc" id="L54">        Maladie maladie = findMaladie(id);</span>
+
+<span class="pc bpc" id="L56" title="1 of 4 branches missed.">        if (!maladie.getNom().equals(dto.getNom()) &amp;&amp; maladieRepository.existsByNom(dto.getNom())) {</span>
+<span class="fc" id="L57">            throw new IllegalArgumentException(&quot;Maladie already exists: &quot; + dto.getNom());</span>
+        }
+
+<span class="fc" id="L60">        maladie.setNom(dto.getNom());</span>
+<span class="fc" id="L61">        maladie.setDescription(dto.getDescription());</span>
+<span class="fc" id="L62">        maladie.setParametresSuivis(dto.getParametresSuivis());</span>
+<span class="fc" id="L63">        maladie.setSeuilMin(dto.getSeuilMin());</span>
+<span class="fc" id="L64">        maladie.setSeuilMax(dto.getSeuilMax());</span>
+<span class="fc" id="L65">        return mapToDTO(maladieRepository.save(maladie));</span>
+    }
+
+    @Override
+    public void delete(Long id) {
+<span class="fc bfc" id="L70" title="All 2 branches covered.">        if (!maladieRepository.existsById(id)) {</span>
+<span class="fc" id="L71">            throw new ResourceNotFoundException(&quot;Maladie not found with id: &quot; + id);</span>
+        }
+<span class="fc" id="L73">        maladieRepository.deleteById(id);</span>
+<span class="fc" id="L74">    }</span>
+
+    private Maladie findMaladie(Long id) {
+<span class="fc" id="L77">        return maladieRepository.findById(id)</span>
+<span class="fc" id="L78">                .orElseThrow(() -&gt; new ResourceNotFoundException(&quot;Maladie not found with id: &quot; + id));</span>
+    }
+
+    private MaladieDTO mapToDTO(Maladie maladie) {
+<span class="fc" id="L82">        return MaladieDTO.builder()</span>
+<span class="fc" id="L83">                .id(maladie.getId())</span>
+<span class="fc" id="L84">                .nom(maladie.getNom())</span>
+<span class="fc" id="L85">                .description(maladie.getDescription())</span>
+<span class="fc" id="L86">                .parametresSuivis(maladie.getParametresSuivis())</span>
+<span class="fc" id="L87">                .seuilMin(maladie.getSeuilMin())</span>
+<span class="fc" id="L88">                .seuilMax(maladie.getSeuilMax())</span>
+<span class="fc" id="L89">                .build();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MesureServiceImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">patient-service</a> &gt; <a href="index.source.html" class="el_package">tn.esprit.patient.service</a> &gt; <span class="el_source">MesureServiceImpl.java</span></div><h1>MesureServiceImpl.java</h1><pre class="source lang-java linenums">package tn.esprit.patient.service;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import tn.esprit.patient.dto.MesureCreationDTO;
+import tn.esprit.patient.dto.MesureDTO;
+import tn.esprit.patient.exception.ResourceNotFoundException;
+import tn.esprit.patient.model.Mesure;
+import tn.esprit.patient.model.Patient;
+import tn.esprit.patient.repository.MesureRepository;
+import tn.esprit.patient.repository.PatientRepository;
+
+import java.util.List;
+
+@Service
+@Transactional
+public class MesureServiceImpl implements MesureService {
+
+<span class="fc" id="L21">    private static final Logger log = LoggerFactory.getLogger(MesureServiceImpl.class);</span>
+
+    private final MesureRepository mesureRepository;
+    private final PatientRepository patientRepository;
+    private final PredictServiceClient predictServiceClient;
+
+    public MesureServiceImpl(MesureRepository mesureRepository,
+                             PatientRepository patientRepository,
+<span class="fc" id="L29">                             PredictServiceClient predictServiceClient) {</span>
+<span class="fc" id="L30">        this.mesureRepository = mesureRepository;</span>
+<span class="fc" id="L31">        this.patientRepository = patientRepository;</span>
+<span class="fc" id="L32">        this.predictServiceClient = predictServiceClient;</span>
+<span class="fc" id="L33">    }</span>
+
+    @Override
+    public MesureDTO create(MesureCreationDTO dto) {
+<span class="fc bfc" id="L37" title="All 2 branches covered.">        if (!patientRepository.existsById(dto.getPatientId())) {</span>
+<span class="fc" id="L38">            throw new ResourceNotFoundException(&quot;Patient not found with id: &quot; + dto.getPatientId());</span>
+        }
+
+<span class="fc" id="L41">        Mesure mesure = Mesure.builder()</span>
+<span class="fc" id="L42">                .patientId(dto.getPatientId())</span>
+<span class="fc" id="L43">                .typeMesure(dto.getTypeMesure())</span>
+<span class="fc" id="L44">                .valeur(dto.getValeur())</span>
+<span class="fc" id="L45">                .unite(dto.getUnite())</span>
+<span class="fc" id="L46">                .source(dto.getSource())</span>
+<span class="fc" id="L47">                .build();</span>
+
+<span class="fc" id="L49">        Mesure savedMesure = mesureRepository.save(mesure);</span>
+<span class="fc" id="L50">        mesureRepository.flush();</span>
+
+        // Auto-recalculate patient risk in real-time
+        try {
+<span class="fc" id="L54">            predictServiceClient.predictRisk(dto.getPatientId());</span>
+<span class="nc" id="L55">        } catch (Exception e) {</span>
+            // Log or ignore ML service connection errors so measurement saving succeeds
+<span class="nc" id="L57">            log.error(&quot;Could not auto-predict risk for patient {}: {}&quot;, dto.getPatientId(), e.getMessage());</span>
+<span class="fc" id="L58">        }</span>
+
+<span class="fc" id="L60">        return mapToDTO(savedMesure);</span>
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public MesureDTO getById(Long id) {
+<span class="nc" id="L66">        Mesure mesure = mesureRepository.findById(id)</span>
+<span class="nc" id="L67">                .orElseThrow(() -&gt; new ResourceNotFoundException(&quot;Mesure not found with id: &quot; + id));</span>
+<span class="nc" id="L68">        return mapToDTO(mesure);</span>
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List&lt;MesureDTO&gt; getByPatientId(Long patientId) {
+<span class="nc bnc" id="L74" title="All 2 branches missed.">        if (!patientRepository.existsById(patientId)) {</span>
+<span class="nc" id="L75">            throw new ResourceNotFoundException(&quot;Patient not found with id: &quot; + patientId);</span>
+        }
+<span class="nc" id="L77">        return mesureRepository.findByPatientIdOrderByDateMesureDesc(patientId).stream()</span>
+<span class="nc" id="L78">                .map(this::mapToDTO)</span>
+<span class="nc" id="L79">                .toList();</span>
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List&lt;MesureDTO&gt; getByMedecinId(Long medecinId) {
+<span class="nc" id="L85">        List&lt;Long&gt; patientIds = patientRepository.findByMedecinId(medecinId).stream()</span>
+<span class="nc" id="L86">                .map(Patient::getId)</span>
+<span class="nc" id="L87">                .toList();</span>
+<span class="nc bnc" id="L88" title="All 2 branches missed.">        if (patientIds.isEmpty()) {</span>
+<span class="nc" id="L89">            return List.of();</span>
+        }
+<span class="nc" id="L91">        return mesureRepository.findByPatientIdInOrderByDateMesureDesc(patientIds).stream()</span>
+<span class="nc" id="L92">                .map(this::mapToDTO)</span>
+<span class="nc" id="L93">                .toList();</span>
+    }
+
+    @Override
+    public void delete(Long id) {
+<span class="nc bnc" id="L98" title="All 2 branches missed.">        if (!mesureRepository.existsById(id)) {</span>
+<span class="nc" id="L99">            throw new ResourceNotFoundException(&quot;Mesure not found with id: &quot; + id);</span>
+        }
+<span class="nc" id="L101">        mesureRepository.deleteById(id);</span>
+<span class="nc" id="L102">    }</span>
+
+    private MesureDTO mapToDTO(Mesure mesure) {
+<span class="fc" id="L105">        return MesureDTO.builder()</span>
+<span class="fc" id="L106">                .id(mesure.getId())</span>
+<span class="fc" id="L107">                .patientId(mesure.getPatientId())</span>
+<span class="fc" id="L108">                .typeMesure(mesure.getTypeMesure())</span>
+<span class="fc" id="L109">                .valeur(mesure.getValeur())</span>
+<span class="fc" id="L110">                .unite(mesure.getUnite())</span>
+<span class="fc" id="L111">                .source(mesure.getSource())</span>
+<span class="fc" id="L112">                .dateMesure(mesure.getDateMesure())</span>
+<span class="fc" id="L113">                .build();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

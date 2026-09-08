@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MesureCreationDTO.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">patient-service</a> &gt; <a href="index.source.html" class="el_package">tn.esprit.patient.dto</a> &gt; <span class="el_source">MesureCreationDTO.java</span></div><h1>MesureCreationDTO.java</h1><pre class="source lang-java linenums">package tn.esprit.patient.dto;
+
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import lombok.*;
+import tn.esprit.patient.model.Source;
+import tn.esprit.patient.model.TypeMesure;
+
+@Getter
+<span class="fc" id="L10">@Setter</span>
+<span class="fc" id="L11">@NoArgsConstructor</span>
+<span class="fc" id="L12">@AllArgsConstructor</span>
+<span class="pc" id="L13">@Builder</span>
+public class MesureCreationDTO {
+
+    @NotNull(message = &quot;Patient ID is required&quot;)
+<span class="fc" id="L17">    private Long patientId;</span>
+
+    @NotNull(message = &quot;Type de mesure is required&quot;)
+<span class="fc" id="L20">    private TypeMesure typeMesure;</span>
+
+    @NotNull(message = &quot;Valeur is required&quot;)
+<span class="fc" id="L23">    private Double valeur;</span>
+
+    @NotBlank(message = &quot;Unité is required&quot;)
+<span class="fc" id="L26">    private String unite;</span>
+
+    @NotNull(message = &quot;Source is required&quot;)
+<span class="fc" id="L29">    private Source source;</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

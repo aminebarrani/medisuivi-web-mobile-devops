@@ -132,12 +132,13 @@ public class PredictServiceClient {
 
     private DiseaseInfo extractDiseaseInfo(Long patientId) {
         List<PatientMaladie> patientMaladies = patientMaladieRepository.findByPatientId(patientId);
-        if (patientMaladies.isEmpty()) {
+        if (patientMaladies == null || patientMaladies.isEmpty()) {
             return new DiseaseInfo(DISEASE_DIABETE, 0.0, null, null);
         }
 
-        patientMaladies.sort((pm1, pm2) -> pm2.getDateDiagnostic().compareTo(pm1.getDateDiagnostic()));
-        PatientMaladie latestPm = patientMaladies.get(0);
+        List<PatientMaladie> sortedMaladies = new ArrayList<>(patientMaladies);
+        sortedMaladies.sort((pm1, pm2) -> pm2.getDateDiagnostic().compareTo(pm1.getDateDiagnostic()));
+        PatientMaladie latestPm = sortedMaladies.get(0);
         Optional<Maladie> maladieOpt = maladieRepository.findById(latestPm.getMaladieId());
 
         String diseaseName = DISEASE_DIABETE;

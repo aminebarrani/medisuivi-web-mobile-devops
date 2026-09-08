@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AlerteServiceImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">patient-service</a> &gt; <a href="index.source.html" class="el_package">tn.esprit.patient.service</a> &gt; <span class="el_source">AlerteServiceImpl.java</span></div><h1>AlerteServiceImpl.java</h1><pre class="source lang-java linenums">package tn.esprit.patient.service;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import tn.esprit.patient.dto.AlerteCreationDTO;
+import tn.esprit.patient.dto.AlerteDTO;
+import tn.esprit.patient.exception.ResourceNotFoundException;
+import tn.esprit.patient.model.Alerte;
+import tn.esprit.patient.model.Patient;
+import tn.esprit.patient.repository.AlerteRepository;
+import tn.esprit.patient.repository.PatientRepository;
+
+import java.util.List;
+
+@Service
+@Transactional
+public class AlerteServiceImpl implements AlerteService {
+
+    private final AlerteRepository alerteRepository;
+    private final PatientRepository patientRepository;
+
+<span class="fc" id="L22">    public AlerteServiceImpl(AlerteRepository alerteRepository, PatientRepository patientRepository) {</span>
+<span class="fc" id="L23">        this.alerteRepository = alerteRepository;</span>
+<span class="fc" id="L24">        this.patientRepository = patientRepository;</span>
+<span class="fc" id="L25">    }</span>
+
+    @Override
+    public AlerteDTO create(AlerteCreationDTO dto) {
+<span class="pc bpc" id="L29" title="1 of 2 branches missed.">        if (!patientRepository.existsById(dto.getPatientId())) {</span>
+<span class="nc" id="L30">            throw new ResourceNotFoundException(&quot;Patient not found with id: &quot; + dto.getPatientId());</span>
+        }
+
+<span class="fc" id="L33">        Alerte alerte = Alerte.builder()</span>
+<span class="fc" id="L34">                .patientId(dto.getPatientId())</span>
+<span class="fc" id="L35">                .niveauRisque(dto.getNiveauRisque())</span>
+<span class="fc" id="L36">                .source(dto.getSource())</span>
+<span class="fc" id="L37">                .description(dto.getDescription())</span>
+<span class="fc" id="L38">                .traitee(false)</span>
+<span class="fc" id="L39">                .build();</span>
+
+<span class="fc" id="L41">        return mapToDTO(alerteRepository.save(alerte));</span>
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public AlerteDTO getById(Long id) {
+<span class="nc" id="L47">        Alerte alerte = alerteRepository.findById(id)</span>
+<span class="nc" id="L48">                .orElseThrow(() -&gt; new ResourceNotFoundException(&quot;Alerte not found with id: &quot; + id));</span>
+<span class="nc" id="L49">        return mapToDTO(alerte);</span>
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List&lt;AlerteDTO&gt; getByPatientId(Long patientId) {
+<span class="nc bnc" id="L55" title="All 2 branches missed.">        if (!patientRepository.existsById(patientId)) {</span>
+<span class="nc" id="L56">            throw new ResourceNotFoundException(&quot;Patient not found with id: &quot; + patientId);</span>
+        }
+<span class="nc" id="L58">        return alerteRepository.findByPatientIdOrderByDateCreationDesc(patientId).stream()</span>
+<span class="nc" id="L59">                .map(this::mapToDTO)</span>
+<span class="nc" id="L60">                .toList();</span>
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List&lt;AlerteDTO&gt; getByMedecinId(Long medecinId) {
+<span class="nc" id="L66">        List&lt;Long&gt; patientIds = patientRepository.findByMedecinId(medecinId).stream()</span>
+<span class="nc" id="L67">                .map(Patient::getId)</span>
+<span class="nc" id="L68">                .toList();</span>
+<span class="nc bnc" id="L69" title="All 2 branches missed.">        if (patientIds.isEmpty()) {</span>
+<span class="nc" id="L70">            return List.of();</span>
+        }
+<span class="nc" id="L72">        return alerteRepository.findByPatientIdInOrderByDateCreationDesc(patientIds).stream()</span>
+<span class="nc" id="L73">                .map(this::mapToDTO)</span>
+<span class="nc" id="L74">                .toList();</span>
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List&lt;AlerteDTO&gt; getByTraitee(Boolean traitee) {
+<span class="nc" id="L80">        return alerteRepository.findByTraiteeOrderByDateCreationDesc(traitee).stream()</span>
+<span class="nc" id="L81">                .map(this::mapToDTO)</span>
+<span class="nc" id="L82">                .toList();</span>
+    }
+
+    @Override
+    public AlerteDTO markAsTraitee(Long id) {
+<span class="fc" id="L87">        Alerte alerte = alerteRepository.findById(id)</span>
+<span class="pc" id="L88">                .orElseThrow(() -&gt; new ResourceNotFoundException(&quot;Alerte not found with id: &quot; + id));</span>
+<span class="fc" id="L89">        alerte.setTraitee(true);</span>
+<span class="fc" id="L90">        return mapToDTO(alerteRepository.save(alerte));</span>
+    }
+
+    @Override
+    public void delete(Long id) {
+<span class="nc bnc" id="L95" title="All 2 branches missed.">        if (!alerteRepository.existsById(id)) {</span>
+<span class="nc" id="L96">            throw new ResourceNotFoundException(&quot;Alerte not found with id: &quot; + id);</span>
+        }
+<span class="nc" id="L98">        alerteRepository.deleteById(id);</span>
+<span class="nc" id="L99">    }</span>
+
+    private AlerteDTO mapToDTO(Alerte alerte) {
+<span class="fc" id="L102">        return AlerteDTO.builder()</span>
+<span class="fc" id="L103">                .id(alerte.getId())</span>
+<span class="fc" id="L104">                .patientId(alerte.getPatientId())</span>
+<span class="fc" id="L105">                .niveauRisque(alerte.getNiveauRisque())</span>
+<span class="fc" id="L106">                .source(alerte.getSource())</span>
+<span class="fc" id="L107">                .description(alerte.getDescription())</span>
+<span class="fc" id="L108">                .dateCreation(alerte.getDateCreation())</span>
+<span class="fc" id="L109">                .traitee(alerte.getTraitee())</span>
+<span class="fc" id="L110">                .build();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

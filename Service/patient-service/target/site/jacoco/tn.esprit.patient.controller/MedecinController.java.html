@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MedecinController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">patient-service</a> &gt; <a href="index.source.html" class="el_package">tn.esprit.patient.controller</a> &gt; <span class="el_source">MedecinController.java</span></div><h1>MedecinController.java</h1><pre class="source lang-java linenums">package tn.esprit.patient.controller;
+
+import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import tn.esprit.patient.dto.MedecinCreationDTO;
+import tn.esprit.patient.dto.MedecinDTO;
+import tn.esprit.patient.dto.PatientDTO;
+import tn.esprit.patient.model.NiveauRisque;
+import tn.esprit.patient.service.MedecinService;
+
+import java.util.List;
+
+@RestController
+@RequestMapping(&quot;/medecins&quot;)
+public class MedecinController {
+
+    private final MedecinService medecinService;
+
+<span class="nc" id="L21">    public MedecinController(MedecinService medecinService) {</span>
+<span class="nc" id="L22">        this.medecinService = medecinService;</span>
+<span class="nc" id="L23">    }</span>
+
+    @PostMapping
+    public ResponseEntity&lt;MedecinDTO&gt; create(@Valid @RequestBody MedecinCreationDTO dto) {
+<span class="nc" id="L27">        return new ResponseEntity&lt;&gt;(medecinService.create(dto), HttpStatus.CREATED);</span>
+    }
+
+    @GetMapping
+    public ResponseEntity&lt;List&lt;MedecinDTO&gt;&gt; getAll() {
+<span class="nc" id="L32">        return ResponseEntity.ok(medecinService.getAll());</span>
+    }
+
+    @GetMapping(&quot;/{id}&quot;)
+    public ResponseEntity&lt;MedecinDTO&gt; getById(@PathVariable Long id) {
+<span class="nc" id="L37">        return ResponseEntity.ok(medecinService.getById(id));</span>
+    }
+
+    @GetMapping(&quot;/user/{userId}&quot;)
+    public ResponseEntity&lt;MedecinDTO&gt; getByUserId(@PathVariable Long userId) {
+<span class="nc" id="L42">        return ResponseEntity.ok(medecinService.getByUserId(userId));</span>
+    }
+
+    @PutMapping(&quot;/{id}&quot;)
+    public ResponseEntity&lt;MedecinDTO&gt; update(@PathVariable Long id, @Valid @RequestBody MedecinDTO dto) {
+<span class="nc" id="L47">        return ResponseEntity.ok(medecinService.update(id, dto));</span>
+    }
+
+    @DeleteMapping(&quot;/{id}&quot;)
+    public ResponseEntity&lt;Void&gt; delete(@PathVariable Long id) {
+<span class="nc" id="L52">        medecinService.delete(id);</span>
+<span class="nc" id="L53">        return ResponseEntity.noContent().build();</span>
+    }
+
+    @GetMapping(&quot;/{id}/patients&quot;)
+    public ResponseEntity&lt;List&lt;PatientDTO&gt;&gt; getPatients(
+            @PathVariable Long id,
+            @RequestParam(required = false) Long maladieId,
+            @RequestParam(required = false) NiveauRisque niveauRisque) {
+<span class="nc" id="L61">        return ResponseEntity.ok(medecinService.getPatients(id, maladieId, niveauRisque));</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>
