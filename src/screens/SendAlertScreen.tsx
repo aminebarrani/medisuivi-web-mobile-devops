@@ -63,7 +63,7 @@ const RISK_OPTIONS: RiskOption[] = [
     level: 'FAIBLE',
     label: 'Faible (Informatif)',
     description: 'Simple remarque ou évolution à signaler au médecin.',
-    color: '#2DD4BF',
+    color: '#3D8B7A',
     bgColor: 'rgba(20, 184, 166, 0.15)',
     borderColor: 'rgba(20, 184, 166, 0.4)',
     icon: 'information-circle',
@@ -225,7 +225,7 @@ export const SendAlertScreen: React.FC = () => {
             <Ionicons
               name="paper-plane"
               size={18}
-              color={activeTab === 'SEND' ? '#DC2626' : '#64748B'}
+              color={activeTab === 'SEND' ? '#DC2626' : '#8A847A'}
               style={{ marginRight: 6 }}
             />
             <Text style={[styles.tabText, activeTab === 'SEND' && styles.tabTextActiveSend]}>
@@ -243,7 +243,7 @@ export const SendAlertScreen: React.FC = () => {
             <Ionicons
               name="notifications"
               size={18}
-              color={activeTab === 'HISTORY' ? '#2563EB' : '#64748B'}
+              color={activeTab === 'HISTORY' ? '#2563EB' : '#8A847A'}
               style={{ marginRight: 6 }}
             />
             <Text style={[styles.tabText, activeTab === 'HISTORY' && styles.tabTextActiveHistory]}>
@@ -368,7 +368,7 @@ export const SendAlertScreen: React.FC = () => {
             <TextInput
               style={styles.textInput}
               placeholder="Décrivez précisément ce que vous ressentez (durée, intensité, déclencheurs, prise de médicaments...)"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor="#6F6B64"
               multiline
               numberOfLines={5}
               textAlignVertical="top"
@@ -495,7 +495,7 @@ export const SendAlertScreen: React.FC = () => {
                   {/* Footer with timestamp and source */}
                   <View style={styles.alertCardFooter}>
                     <View style={styles.dateRow}>
-                      <Ionicons name="calendar-outline" size={13} color="#94A3B8" style={{ marginRight: 4 }} />
+                      <Ionicons name="calendar-outline" size={13} color="#6F6B64" style={{ marginRight: 4 }} />
                       <Text style={styles.alertCardDate}>{dateStr}</Text>
                     </View>
                     <Text style={styles.alertCardSource}>Source: {item.source || 'PATIENT'}</Text>
@@ -513,19 +513,19 @@ export const SendAlertScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#020617',
+    backgroundColor: '#F3EFE6',
   },
   topBar: {
     paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 8,
-    backgroundColor: '#091124',
+    backgroundColor: '#FFFDF8',
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 255, 255, 0.08)',
   },
   tabContainer: {
     flexDirection: 'row',
-    backgroundColor: '#0F172A',
+    backgroundColor: '#FFFFFF',
     borderRadius: 12,
     padding: 3,
     borderWidth: 1,
@@ -550,14 +550,14 @@ const styles = StyleSheet.create({
   tabText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#64748B',
+    color: '#8A847A',
   },
   tabTextActiveSend: {
     color: '#F43F5E',
     fontWeight: '700',
   },
   tabTextActiveHistory: {
-    color: '#2DD4BF',
+    color: '#3D8B7A',
     fontWeight: '700',
   },
   scrollArea: {
@@ -589,18 +589,18 @@ const styles = StyleSheet.create({
   doctorBannerTitle: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#2DD4BF',
+    color: '#3D8B7A',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   doctorBannerName: {
     fontSize: 15,
     fontWeight: '800',
-    color: '#F8FAFC',
+    color: '#2C2A26',
   },
   doctorBannerSpecialty: {
     fontSize: 12,
-    color: '#94A3B8',
+    color: '#6F6B64',
   },
   liveSyncBadge: {
     flexDirection: 'row',
@@ -682,7 +682,7 @@ const styles = StyleSheet.create({
   },
   riskCardDesc: {
     fontSize: 12,
-    color: '#94A3B8',
+    color: '#6F6B64',
     marginTop: 4,
     marginLeft: 28,
   },
@@ -693,7 +693,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   presetChip: {
-    backgroundColor: '#0F172A',
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
     paddingHorizontal: 12,
@@ -702,7 +702,7 @@ const styles = StyleSheet.create({
   },
   presetChipSelected: {
     backgroundColor: '#0D9488',
-    borderColor: '#2DD4BF',
+    borderColor: '#3D8B7A',
   },
   presetChipText: {
     fontSize: 12,
@@ -716,11 +716,11 @@ const styles = StyleSheet.create({
   noteCard: {
     padding: 14,
     marginBottom: 16,
-    backgroundColor: '#0F172A',
+    backgroundColor: '#FFFFFF',
   },
   textInput: {
     fontSize: 15,
-    color: '#F8FAFC',
+    color: '#2C2A26',
     minHeight: 100,
     lineHeight: 22,
   },
@@ -735,7 +735,7 @@ const styles = StyleSheet.create({
   },
   charCount: {
     fontSize: 11,
-    color: '#64748B',
+    color: '#8A847A',
   },
   clearBtnText: {
     fontSize: 12,
@@ -782,28 +782,28 @@ const styles = StyleSheet.create({
   historyHeaderTitle: {
     fontSize: 20,
     fontWeight: '800',
-    color: '#F8FAFC',
+    color: '#2C2A26',
   },
   historyHeaderSub: {
     fontSize: 13,
-    color: '#94A3B8',
+    color: '#6F6B64',
     marginTop: 2,
   },
   emptyHistoryCard: {
     alignItems: 'center',
     padding: 32,
     marginTop: 20,
-    backgroundColor: '#0F172A',
+    backgroundColor: '#FFFFFF',
   },
   emptyHistoryTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#F8FAFC',
+    color: '#2C2A26',
     marginTop: 14,
   },
   emptyHistoryText: {
     fontSize: 13,
-    color: '#94A3B8',
+    color: '#6F6B64',
     textAlign: 'center',
     marginTop: 6,
     lineHeight: 18,
@@ -811,7 +811,7 @@ const styles = StyleSheet.create({
   alertHistoryCard: {
     padding: 16,
     marginBottom: 12,
-    backgroundColor: '#0F172A',
+    backgroundColor: '#FFFFFF',
   },
   alertCardTop: {
     flexDirection: 'row',
@@ -863,7 +863,7 @@ const styles = StyleSheet.create({
   },
   alertCardDescription: {
     fontSize: 14,
-    color: '#F8FAFC',
+    color: '#2C2A26',
     fontWeight: '500',
     lineHeight: 20,
     marginBottom: 12,
@@ -882,11 +882,11 @@ const styles = StyleSheet.create({
   },
   alertCardDate: {
     fontSize: 11,
-    color: '#94A3B8',
+    color: '#6F6B64',
   },
   alertCardSource: {
     fontSize: 11,
-    color: '#64748B',
+    color: '#8A847A',
     fontWeight: '700',
   },
 });

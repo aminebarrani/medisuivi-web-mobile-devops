@@ -1,9 +1,9 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { API_CONFIG, STORAGE_KEYS } from '../config/constants';
+import { API_CONFIG, STORAGE_KEYS, getDefaultApiBaseUrl, isStaleApiUrl } from '../config/constants';
 
 const api = axios.create({
-  baseURL: API_CONFIG.BASE_URL,
+  baseURL: getDefaultApiBaseUrl(),
   timeout: API_CONFIG.TIMEOUT,
   headers: {
     'Content-Type': 'application/json',
@@ -19,12 +19,14 @@ export const setUnauthenticatedCallback = (cb: () => void) => {
 // Request interceptor to attach JWT token & dynamic base URL
 api.interceptors.request.use(
   async (config) => {
-    // Check if user set custom API base URL
     const customUrl = await AsyncStorage.getItem(STORAGE_KEYS.API_URL);
-    if (customUrl) {
-      config.baseURL = customUrl;
+    if (customUrl && !isStaleApiUrl(customUrl)) {
+      config.baseURL = customUrl.replace(/\/$/, '');
     } else {
-      config.baseURL = API_CONFIG.BASE_URL;
+      if (isStaleApiUrl(customUrl)) {
+        await AsyncStorage.removeItem(STORAGE_KEYS.API_URL);
+      }
+      config.baseURL = getDefaultApiBaseUrl();
     }
 
     const token = await AsyncStorage.getItem(STORAGE_KEYS.TOKEN);

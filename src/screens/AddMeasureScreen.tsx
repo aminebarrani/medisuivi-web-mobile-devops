@@ -117,7 +117,7 @@ export const AddMeasureScreen: React.FC = () => {
                 <Ionicons
                   name={item.icon as any}
                   size={26}
-                  color={isSelected ? '#FFFFFF' : '#2DD4BF'}
+                  color={isSelected ? '#FFFFFF' : '#3D8B7A'}
                 />
                 <Text style={[styles.tileText, isSelected && styles.tileTextSelected]}>
                   {item.label}
@@ -133,7 +133,7 @@ export const AddMeasureScreen: React.FC = () => {
         {/* Value Input Section */}
         <Card style={styles.inputCard}>
           <Text style={styles.labelSection}>
-            2. Valeur observée pour <Text style={{ color: '#2DD4BF' }}>{currentConfig.label}</Text> :
+            2. Valeur observée pour <Text style={{ color: '#3D8B7A' }}>{currentConfig.label}</Text> :
           </Text>
 
           {errorMsg ? (
@@ -171,7 +171,7 @@ export const AddMeasureScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#020617',
+    backgroundColor: '#F3EFE6',
   },
   content: {
     padding: 20,
@@ -184,11 +184,11 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: '800',
-    color: '#F8FAFC',
+    color: '#2C2A26',
   },
   subtitle: {
     fontSize: 14,
-    color: '#94A3B8',
+    color: '#6F6B64',
     marginTop: 4,
   },
   sourceNotice: {
@@ -203,7 +203,7 @@ const styles = StyleSheet.create({
   },
   sourceNoticeText: {
     fontSize: 13,
-    color: '#2DD4BF',
+    color: '#3D8B7A',
     marginLeft: 8,
   },
   labelSection: {
@@ -220,7 +220,7 @@ const styles = StyleSheet.create({
   },
   typeTile: {
     width: '48%',
-    backgroundColor: '#0F172A',
+    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 16,
     alignItems: 'center',
@@ -235,12 +235,12 @@ const styles = StyleSheet.create({
   },
   typeTileSelected: {
     backgroundColor: '#0D9488',
-    borderColor: '#2DD4BF',
+    borderColor: '#3D8B7A',
   },
   tileText: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#F8FAFC',
+    color: '#2C2A26',
     marginTop: 8,
     textAlign: 'center',
   },
@@ -249,7 +249,7 @@ const styles = StyleSheet.create({
   },
   unitBadgeText: {
     fontSize: 12,
-    color: '#94A3B8',
+    color: '#6F6B64',
     marginTop: 2,
   },
   unitBadgeTextSelected: {
@@ -257,7 +257,7 @@ const styles = StyleSheet.create({
   },
   inputCard: {
     padding: 20,
-    backgroundColor: '#0F172A',
+    backgroundColor: '#FFFFFF',
   },
   inputRow: {
     flexDirection: 'row',
@@ -266,7 +266,7 @@ const styles = StyleSheet.create({
   valeurInput: {
     fontSize: 20,
     fontWeight: '800',
-    color: '#F8FAFC',
+    color: '#2C2A26',
   },
   unitBox: {
     backgroundColor: '#1E293B',
@@ -283,7 +283,7 @@ const styles = StyleSheet.create({
   unitBoxText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#2DD4BF',
+    color: '#3D8B7A',
   },
   errorBox: {
     backgroundColor: 'rgba(244, 63, 94, 0.12)',

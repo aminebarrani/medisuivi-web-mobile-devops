@@ -195,16 +195,16 @@ export const EvolutionChart: React.FC<EvolutionChartProps> = ({
         {/* Selected Data Point Tooltip */}
         {selectedPoint && (
           <View style={styles.pointDetailBanner}>
-            <Ionicons name="information-circle" size={18} color="#2DD4BF" />
+            <Ionicons name="information-circle" size={18} color="#3D8B7A" />
             <Text style={styles.pointDetailText}>
-              Mesure sélectionnée: <Text style={{ fontWeight: '700', color: '#2DD4BF' }}>{selectedPoint.value} {typeConfig.unit}</Text> le {selectedPoint.date}
+              Mesure sélectionnée: <Text style={{ fontWeight: '700', color: '#3D8B7A' }}>{selectedPoint.value} {typeConfig.unit}</Text> le {selectedPoint.date}
             </Text>
           </View>
         )}
 
         {filteredData.length === 0 ? (
           <View style={styles.emptyChartContainer}>
-            <Ionicons name="stats-chart-outline" size={40} color="#64748B" />
+            <Ionicons name="stats-chart-outline" size={40} color="#8A847A" />
             <Text style={styles.emptyChartText}>
               Aucune mesure trouvée pour cette période ({PERIOD_CONFIG.find((p) => p.key === period)?.label}).
             </Text>
@@ -228,8 +228,8 @@ export const EvolutionChart: React.FC<EvolutionChartProps> = ({
               yAxisSuffix={` ${typeConfig.unit}`}
               yAxisInterval={1}
               chartConfig={{
-                backgroundColor: '#0F172A',
-                backgroundGradientFrom: '#0F172A',
+                backgroundColor: '#FFFFFF',
+                backgroundGradientFrom: '#FFFFFF',
                 backgroundGradientTo: '#091124',
                 decimalPlaces: selectedType === 'GLYCEMIE' ? 2 : 0,
                 color: (opacity = 1) => `rgba(45, 212, 191, ${opacity})`,
@@ -240,8 +240,8 @@ export const EvolutionChart: React.FC<EvolutionChartProps> = ({
                 propsForDots: {
                   r: '5',
                   strokeWidth: '2',
-                  stroke: '#2DD4BF',
-                  fill: '#0F172A',
+                  stroke: '#3D8B7A',
+                  fill: '#FFFFFF',
                 },
                 propsForBackgroundLines: {
                   strokeDasharray: '4',
@@ -276,7 +276,7 @@ const styles = StyleSheet.create({
   },
   periodRow: {
     flexDirection: 'row',
-    backgroundColor: '#0F172A',
+    backgroundColor: '#FFFFFF',
     borderRadius: 12,
     padding: 4,
     marginBottom: 14,
@@ -300,7 +300,7 @@ const styles = StyleSheet.create({
   periodButtonText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#64748B',
+    color: '#8A847A',
   },
   periodButtonTextActive: {
     color: '#FFFFFF',
@@ -314,7 +314,7 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flex: 1,
-    backgroundColor: '#0F172A',
+    backgroundColor: '#FFFFFF',
     borderRadius: 14,
     padding: 10,
     alignItems: 'center',
@@ -329,7 +329,7 @@ const styles = StyleSheet.create({
   statLabel: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#64748B',
+    color: '#8A847A',
     textTransform: 'uppercase',
     marginBottom: 2,
   },
@@ -341,12 +341,12 @@ const styles = StyleSheet.create({
   statUnit: {
     fontSize: 10,
     fontWeight: '600',
-    color: '#94A3B8',
+    color: '#6F6B64',
   },
   chartCard: {
     padding: 16,
     borderRadius: 18,
-    backgroundColor: '#0F172A',
+    backgroundColor: '#FFFFFF',
   },
   chartHeader: {
     flexDirection: 'row',
@@ -361,11 +361,11 @@ const styles = StyleSheet.create({
   chartTitle: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#F8FAFC',
+    color: '#2C2A26',
   },
   chartCount: {
     fontSize: 12,
-    color: '#94A3B8',
+    color: '#6F6B64',
     fontWeight: '600',
   },
   pointDetailBanner: {
@@ -381,7 +381,7 @@ const styles = StyleSheet.create({
   },
   pointDetailText: {
     fontSize: 12,
-    color: '#F8FAFC',
+    color: '#2C2A26',
   },
   emptyChartContainer: {
     alignItems: 'center',
@@ -392,13 +392,13 @@ const styles = StyleSheet.create({
   singlePointTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#F8FAFC',
+    color: '#2C2A26',
     marginTop: 8,
     marginBottom: 4,
   },
   emptyChartText: {
     fontSize: 13,
-    color: '#64748B',
+    color: '#8A847A',
     textAlign: 'center',
     marginTop: 6,
   },

@@ -91,14 +91,14 @@ export const DashboardScreen: React.FC = () => {
           style={styles.profileBtn}
           onPress={() => navigation.navigate('Profile')}
         >
-          <Ionicons name="person-circle-outline" size={38} color="#2DD4BF" />
+          <Ionicons name="person-circle-outline" size={38} color="#3D8B7A" />
         </TouchableOpacity>
       </View>
 
       {/* Doctor Info Banner */}
       {doctor && (
         <View style={styles.doctorBanner}>
-          <Ionicons name="medkit" size={18} color="#2DD4BF" style={{ marginRight: 8 }} />
+          <Ionicons name="medkit" size={18} color="#3D8B7A" style={{ marginRight: 8 }} />
           <View style={{ flex: 1 }}>
             <Text style={styles.doctorBannerTitle}>Médecin Référent : {doctor.name}</Text>
             <Text style={styles.doctorBannerSubtitle}>{doctor.specialite} {doctor.numeroOrdre ? `• Ordre: ${doctor.numeroOrdre}` : ''}</Text>
@@ -109,7 +109,7 @@ export const DashboardScreen: React.FC = () => {
       {/* Risk Status Card */}
       <Card style={styles.statusCard}>
         <View style={styles.statusHeader}>
-          <Ionicons name="shield-checkmark" size={24} color="#2DD4BF" />
+          <Ionicons name="shield-checkmark" size={24} color="#3D8B7A" />
           <Text style={styles.statusTitle}>État de Santé Général</Text>
         </View>
         <RiskBadge
@@ -166,10 +166,10 @@ export const DashboardScreen: React.FC = () => {
       </View>
 
       {loading ? (
-        <ActivityIndicator size="large" color="#2DD4BF" style={{ marginVertical: 20 }} />
+        <ActivityIndicator size="large" color="#3D8B7A" style={{ marginVertical: 20 }} />
       ) : recentMesures.length === 0 ? (
         <Card style={styles.emptyCard}>
-          <Ionicons name="medical-outline" size={40} color="#64748B" />
+          <Ionicons name="medical-outline" size={40} color="#8A847A" />
           <Text style={styles.emptyText}>Aucune mesure enregistrée pour le moment.</Text>
           <Text style={styles.emptySubtext}>Cliquez sur le bouton ci-dessus pour ajouter votre première mesure.</Text>
         </Card>
@@ -183,7 +183,7 @@ export const DashboardScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#020617',
+    backgroundColor: '#F3EFE6',
   },
   content: {
     padding: 20,
@@ -198,13 +198,13 @@ const styles = StyleSheet.create({
   },
   greeting: {
     fontSize: 14,
-    color: '#94A3B8',
+    color: '#6F6B64',
     fontWeight: '500',
   },
   userName: {
     fontSize: 24,
     fontWeight: '800',
-    color: '#F8FAFC',
+    color: '#2C2A26',
   },
   profileBtn: {
     padding: 4,
@@ -222,16 +222,16 @@ const styles = StyleSheet.create({
   doctorBannerTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#2DD4BF',
+    color: '#3D8B7A',
   },
   doctorBannerSubtitle: {
     fontSize: 12,
-    color: '#94A3B8',
+    color: '#6F6B64',
     marginTop: 2,
   },
   statusCard: {
     marginBottom: 16,
-    backgroundColor: '#0F172A',
+    backgroundColor: '#FFFFFF',
   },
   statusHeader: {
     flexDirection: 'row',
@@ -241,7 +241,7 @@ const styles = StyleSheet.create({
   statusTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#F8FAFC',
+    color: '#2C2A26',
     marginLeft: 8,
   },
   alertBanner: {
@@ -302,11 +302,11 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#F8FAFC',
+    color: '#2C2A26',
   },
   seeAllText: {
     fontSize: 14,
-    color: '#2DD4BF',
+    color: '#3D8B7A',
     fontWeight: '700',
   },
   emptyCard: {
@@ -321,7 +321,7 @@ const styles = StyleSheet.create({
   },
   emptySubtext: {
     fontSize: 13,
-    color: '#64748B',
+    color: '#8A847A',
     textAlign: 'center',
     marginTop: 4,
   },

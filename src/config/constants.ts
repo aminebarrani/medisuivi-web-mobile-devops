@@ -1,14 +1,58 @@
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 
-// Default host for local development:
-// Android Emulator uses 10.0.2.2 to reach host machine localhost.
-// iOS Simulator or Web uses localhost.
-// Replace with your machine's local IP address (e.g. http://192.168.1.50:8080/api) when testing on a physical mobile device.
-const DEFAULT_HOST = 'http://192.168.1.137:8222/api';
+const API_PORT = 8222;
+const API_PATH = '/api';
+const FALLBACK_LAN_IP = '10.131.57.73';
+const STALE_API_HOSTS = ['192.168.1.137'];
+
+function extractIpv4(value?: string | null): string | null {
+  if (!value) return null;
+  const match = String(value).match(/(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})/);
+  return match?.[1] ?? null;
+}
+
+function getExpoDevHost(): string | null {
+  const extras = Constants.manifest2?.extra as { expoGo?: { debuggerHost?: string } } | undefined;
+  const candidates = [
+    Constants.expoConfig?.hostUri,
+    Constants.linkingUri,
+    extras?.expoGo?.debuggerHost,
+    Constants.expoGoConfig?.debuggerHost,
+  ];
+
+  for (const candidate of candidates) {
+    const ip = extractIpv4(candidate);
+    if (ip) return ip;
+  }
+  return null;
+}
+
+export function getDefaultApiBaseUrl(): string {
+  const expoHost = getExpoDevHost();
+  if (expoHost && expoHost !== '127.0.0.1') {
+    return `http://${expoHost}:${API_PORT}${API_PATH}`;
+  }
+
+  if (Constants.isDevice) {
+    return `http://${FALLBACK_LAN_IP}:${API_PORT}${API_PATH}`;
+  }
+
+  if (Platform.OS === 'android') {
+    return `http://10.0.2.2:${API_PORT}${API_PATH}`;
+  }
+
+  return `http://localhost:${API_PORT}${API_PATH}`;
+}
+
+export function isStaleApiUrl(url?: string | null): boolean {
+  if (!url) return false;
+  return STALE_API_HOSTS.some((host) => url.includes(host));
+}
 
 export const API_CONFIG = {
-  BASE_URL: DEFAULT_HOST,
-  TIMEOUT: 10000,
+  BASE_URL: getDefaultApiBaseUrl(),
+  TIMEOUT: 15000,
 };
 
 export const STORAGE_KEYS = {

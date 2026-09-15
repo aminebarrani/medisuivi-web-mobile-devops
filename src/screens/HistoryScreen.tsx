@@ -83,7 +83,7 @@ export const HistoryScreen: React.FC = () => {
             <Ionicons
               name="analytics"
               size={18}
-              color={viewMode === 'CHART' ? '#2DD4BF' : '#64748B'}
+              color={viewMode === 'CHART' ? '#3D8B7A' : '#8A847A'}
               style={{ marginRight: 6 }}
             />
             <Text style={[styles.modeToggleText, viewMode === 'CHART' && styles.modeToggleTextActive]}>
@@ -98,7 +98,7 @@ export const HistoryScreen: React.FC = () => {
             <Ionicons
               name="list"
               size={18}
-              color={viewMode === 'LIST' ? '#2DD4BF' : '#64748B'}
+              color={viewMode === 'LIST' ? '#3D8B7A' : '#8A847A'}
               style={{ marginRight: 6 }}
             />
             <Text style={[styles.modeToggleText, viewMode === 'LIST' && styles.modeToggleTextActive]}>
@@ -137,7 +137,7 @@ export const HistoryScreen: React.FC = () => {
                   <Ionicons
                     name={(item.icon as any) || 'pulse'}
                     size={16}
-                    color={isSelected ? '#FFFFFF' : '#64748B'}
+                    color={isSelected ? '#FFFFFF' : '#8A847A'}
                     style={{ marginRight: 6 }}
                   />
                   <Text style={[styles.chartTypeChipText, isSelected && styles.chartTypeChipTextSelected]}>
@@ -196,7 +196,7 @@ export const HistoryScreen: React.FC = () => {
           {filteredMesures.length === 0 ? (
             <View style={styles.emptyContainer}>
               <Card style={styles.emptyCard}>
-                <Ionicons name="document-text-outline" size={48} color="#94A3B8" />
+                <Ionicons name="document-text-outline" size={48} color="#6F6B64" />
                 <Text style={styles.emptyTitle}>Aucune mesure enregistrée</Text>
                 <Text style={styles.emptyText}>
                   {selectedFilter === 'ALL'
@@ -223,30 +223,30 @@ export const HistoryScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#020617',
+    backgroundColor: '#F3EFE6',
   },
   header: {
     paddingHorizontal: 20,
     paddingTop: 16,
     paddingBottom: 12,
-    backgroundColor: '#091124',
+    backgroundColor: '#FFFDF8',
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 255, 255, 0.08)',
   },
   title: {
     fontSize: 22,
     fontWeight: '800',
-    color: '#F8FAFC',
+    color: '#2C2A26',
   },
   subtitle: {
     fontSize: 13,
-    color: '#94A3B8',
+    color: '#6F6B64',
     marginTop: 3,
     marginBottom: 12,
   },
   modeToggleContainer: {
     flexDirection: 'row',
-    backgroundColor: '#0F172A',
+    backgroundColor: '#FFFFFF',
     borderRadius: 10,
     padding: 3,
     borderWidth: 1,
@@ -271,10 +271,10 @@ const styles = StyleSheet.create({
   modeToggleText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#64748B',
+    color: '#8A847A',
   },
   modeToggleTextActive: {
-    color: '#2DD4BF',
+    color: '#3D8B7A',
     fontWeight: '700',
   },
   scrollContent: {
@@ -300,19 +300,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: '#0F172A',
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
     marginRight: 8,
   },
   chartTypeChipSelected: {
     backgroundColor: '#0D9488',
-    borderColor: '#2DD4BF',
+    borderColor: '#3D8B7A',
   },
   chartTypeChipText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#94A3B8',
+    color: '#6F6B64',
   },
   chartTypeChipTextSelected: {
     color: '#FFFFFF',
@@ -324,17 +324,17 @@ const styles = StyleSheet.create({
   sectionSubtitle: {
     fontSize: 15,
     fontWeight: '800',
-    color: '#F8FAFC',
+    color: '#2C2A26',
     marginBottom: 10,
   },
   emptyRecentCard: {
     padding: 16,
     alignItems: 'center',
-    backgroundColor: '#0F172A',
+    backgroundColor: '#FFFFFF',
   },
   emptyRecentText: {
     fontSize: 13,
-    color: '#64748B',
+    color: '#8A847A',
   },
   filterContainer: {
     marginVertical: 10,
@@ -346,19 +346,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: '#0F172A',
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.08)',
     marginRight: 8,
   },
   filterChipSelected: {
     backgroundColor: '#0D9488',
-    borderColor: '#2DD4BF',
+    borderColor: '#3D8B7A',
   },
   filterChipText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#94A3B8',
+    color: '#6F6B64',
   },
   filterChipTextSelected: {
     color: '#FFFFFF',
@@ -375,17 +375,17 @@ const styles = StyleSheet.create({
   emptyCard: {
     alignItems: 'center',
     padding: 30,
-    backgroundColor: '#0F172A',
+    backgroundColor: '#FFFFFF',
   },
   emptyTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#F8FAFC',
+    color: '#2C2A26',
     marginTop: 12,
   },
   emptyText: {
     fontSize: 14,
-    color: '#94A3B8',
+    color: '#6F6B64',
     textAlign: 'center',
     marginTop: 6,
   },

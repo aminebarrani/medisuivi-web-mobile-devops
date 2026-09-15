@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { NiveauRisque } from '../types';
+import { colors } from '../theme';
 
 interface RiskBadgeProps {
   niveauRisque?: NiveauRisque | string;
@@ -14,42 +15,42 @@ export const RiskBadge: React.FC<RiskBadgeProps> = ({ niveauRisque = 'FAIBLE', s
     switch (normalized) {
       case 'FAIBLE':
         return {
-          bg: 'rgba(16, 185, 129, 0.12)',
-          text: '#34D399',
-          border: 'rgba(16, 185, 129, 0.35)',
-          label: 'Risque Faible (Stable)',
+          bg: colors.successSoft,
+          text: colors.success,
+          border: '#C5DFD0',
+          label: 'Risque faible',
           desc: 'Aucune anomalie détectée. Continuez votre suivi quotidien.',
         };
       case 'MODERE':
       case 'MOYEN':
         return {
-          bg: 'rgba(245, 158, 11, 0.12)',
-          text: '#FBBF24',
-          border: 'rgba(245, 158, 11, 0.35)',
-          label: 'Risque Modéré (Vigilance)',
+          bg: colors.warningSoft,
+          text: colors.warning,
+          border: '#EAD8B4',
+          label: 'Risque modéré',
           desc: 'Des paramètres requièrent une attention particulière.',
         };
       case 'ELEVE':
         return {
-          bg: 'rgba(249, 115, 22, 0.12)',
-          text: '#FB923C',
-          border: 'rgba(249, 115, 22, 0.35)',
-          label: 'Risque Élevé (Vigilance)',
+          bg: '#F6EBE3',
+          text: '#B56A3A',
+          border: '#E8D0C0',
+          label: 'Risque élevé',
           desc: 'Mesures hors normes. Prévenez votre médecin si besoin.',
         };
       case 'CRITIQUE':
         return {
-          bg: 'rgba(244, 63, 94, 0.15)',
-          text: '#FB7185',
-          border: 'rgba(244, 63, 94, 0.4)',
-          label: 'Risque Critique (Urgent)',
-          desc: 'Alerte médicale critique ! Contactez votre médecin d\'urgence.',
+          bg: colors.dangerSoft,
+          text: colors.danger,
+          border: '#E8C6C6',
+          label: 'Risque critique',
+          desc: "Alerte médicale critique. Contactez votre médecin d'urgence.",
         };
       default:
         return {
-          bg: 'rgba(255, 255, 255, 0.08)',
-          text: '#94A3B8',
-          border: 'rgba(255, 255, 255, 0.15)',
+          bg: colors.surface,
+          text: colors.muted,
+          border: colors.border,
           label: normalized,
           desc: 'Suivi de santé habituel.',
         };
@@ -94,7 +95,7 @@ const styles = StyleSheet.create({
   descText: {
     marginTop: 8,
     fontSize: 13,
-    color: '#94A3B8',
+    color: colors.muted,
     lineHeight: 18,
   },
 });

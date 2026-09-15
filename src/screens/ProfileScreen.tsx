@@ -10,7 +10,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import useAuth from '../hooks/useAuth';
-import { STORAGE_KEYS, API_CONFIG } from '../config/constants';
+import { STORAGE_KEYS, getDefaultApiBaseUrl, isStaleApiUrl } from '../config/constants';
 import Card from '../components/Card';
 import Button from '../components/Button';
 import InputField from '../components/InputField';
@@ -20,13 +20,16 @@ import { DoctorDetails } from '../types';
 export const ProfileScreen: React.FC = () => {
   const { user, patient, logout } = useAuth();
   const [doctor, setDoctor] = useState<DoctorDetails | null>(null);
-  const [apiUrl, setApiUrl] = useState<string>(API_CONFIG.BASE_URL);
+  const [apiUrl, setApiUrl] = useState<string>(getDefaultApiBaseUrl());
   const [isSavedUrl, setIsSavedUrl] = useState<boolean>(false);
 
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEYS.API_URL).then((url) => {
-      if (url) {
+      if (url && !isStaleApiUrl(url)) {
         setApiUrl(url);
+      } else if (isStaleApiUrl(url)) {
+        AsyncStorage.removeItem(STORAGE_KEYS.API_URL);
+        setApiUrl(getDefaultApiBaseUrl());
       }
     });
 
@@ -39,7 +42,7 @@ export const ProfileScreen: React.FC = () => {
     try {
       if (!apiUrl.trim()) {
         await AsyncStorage.removeItem(STORAGE_KEYS.API_URL);
-        setApiUrl(API_CONFIG.BASE_URL);
+        setApiUrl(getDefaultApiBaseUrl());
       } else {
         await AsyncStorage.setItem(STORAGE_KEYS.API_URL, apiUrl.trim());
       }
@@ -89,7 +92,7 @@ export const ProfileScreen: React.FC = () => {
         <Text style={styles.cardTitle}>Informations Personnelles</Text>
 
         <View style={styles.infoRow}>
-          <Ionicons name="id-card-outline" size={20} color="#64748B" style={styles.infoIcon} />
+          <Ionicons name="id-card-outline" size={20} color="#8A847A" style={styles.infoIcon} />
           <View style={styles.infoContent}>
             <Text style={styles.infoLabel}>Identifiant Patient (ID)</Text>
             <Text style={styles.infoValue}>#{patient?.id || 'Non assigné'}</Text>
@@ -97,7 +100,7 @@ export const ProfileScreen: React.FC = () => {
         </View>
 
         <View style={styles.infoRow}>
-          <Ionicons name="person-outline" size={20} color="#64748B" style={styles.infoIcon} />
+          <Ionicons name="person-outline" size={20} color="#8A847A" style={styles.infoIcon} />
           <View style={styles.infoContent}>
             <Text style={styles.infoLabel}>Nom d'utilisateur</Text>
             <Text style={styles.infoValue}>{user?.username || '-'}</Text>
@@ -105,7 +108,7 @@ export const ProfileScreen: React.FC = () => {
         </View>
 
         <View style={styles.infoRow}>
-          <Ionicons name="call-outline" size={20} color="#64748B" style={styles.infoIcon} />
+          <Ionicons name="call-outline" size={20} color="#8A847A" style={styles.infoIcon} />
           <View style={styles.infoContent}>
             <Text style={styles.infoLabel}>Téléphone</Text>
             <Text style={styles.infoValue}>{user?.phone || 'Non renseigné'}</Text>
@@ -113,7 +116,7 @@ export const ProfileScreen: React.FC = () => {
         </View>
 
         <View style={styles.infoRow}>
-          <Ionicons name="transgender-outline" size={20} color="#64748B" style={styles.infoIcon} />
+          <Ionicons name="transgender-outline" size={20} color="#8A847A" style={styles.infoIcon} />
           <View style={styles.infoContent}>
             <Text style={styles.infoLabel}>Sexe enregistré</Text>
             <Text style={styles.infoValue}>
@@ -123,19 +126,19 @@ export const ProfileScreen: React.FC = () => {
         </View>
 
         <View style={styles.infoRow}>
-          <Ionicons name="medkit-outline" size={20} color="#2DD4BF" style={styles.infoIcon} />
+          <Ionicons name="medkit-outline" size={20} color="#3D8B7A" style={styles.infoIcon} />
           <View style={styles.infoContent}>
             <Text style={styles.infoLabel}>Médecin Référent</Text>
             <Text style={styles.infoValue}>
               {doctor ? doctor.name : (patient?.medecinId ? `Dr. #${patient.medecinId}` : 'Non attribué')}
             </Text>
             {doctor?.specialite ? (
-              <Text style={{ fontSize: 12, color: '#94A3B8', marginTop: 2 }}>
+              <Text style={{ fontSize: 12, color: '#6F6B64', marginTop: 2 }}>
                 Spécialité : {doctor.specialite} {doctor.numeroOrdre ? `• Ordre : ${doctor.numeroOrdre}` : ''}
               </Text>
             ) : null}
             {doctor?.email ? (
-              <Text style={{ fontSize: 12, color: '#2DD4BF', marginTop: 1 }}>
+              <Text style={{ fontSize: 12, color: '#3D8B7A', marginTop: 1 }}>
                 {doctor.email}
               </Text>
             ) : null}
@@ -154,9 +157,9 @@ export const ProfileScreen: React.FC = () => {
           label="Adresse URL API Gateway"
           value={apiUrl}
           onChangeText={setApiUrl}
-          placeholder="http://192.168.1.X:8080/api"
+          placeholder="http://10.131.57.73:8222/api"
           autoCapitalize="none"
-          icon={<Ionicons name="server-outline" size={20} color="#64748B" />}
+          icon={<Ionicons name="server-outline" size={20} color="#8A847A" />}
         />
 
         <Button
@@ -181,7 +184,7 @@ export const ProfileScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#020617',
+    backgroundColor: '#F3EFE6',
   },
   content: {
     padding: 20,
@@ -214,11 +217,11 @@ const styles = StyleSheet.create({
   nameText: {
     fontSize: 22,
     fontWeight: '800',
-    color: '#F8FAFC',
+    color: '#2C2A26',
   },
   emailText: {
     fontSize: 14,
-    color: '#94A3B8',
+    color: '#6F6B64',
     marginTop: 2,
   },
   roleBadge: {
@@ -233,21 +236,21 @@ const styles = StyleSheet.create({
   roleBadgeText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#2DD4BF',
+    color: '#3D8B7A',
   },
   card: {
     marginBottom: 16,
-    backgroundColor: '#0F172A',
+    backgroundColor: '#FFFFFF',
   },
   cardTitle: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#F8FAFC',
+    color: '#2C2A26',
     marginBottom: 12,
   },
   cardSubtitle: {
     fontSize: 13,
-    color: '#94A3B8',
+    color: '#6F6B64',
     marginBottom: 14,
   },
   infoRow: {
@@ -265,13 +268,13 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     fontSize: 12,
-    color: '#64748B',
+    color: '#8A847A',
     fontWeight: '600',
   },
   infoValue: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#F8FAFC',
+    color: '#2C2A26',
     marginTop: 2,
   },
   logoutBtn: {

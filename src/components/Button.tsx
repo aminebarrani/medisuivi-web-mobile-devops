@@ -1,5 +1,6 @@
 import React from 'react';
 import { TouchableOpacity, Text, StyleSheet, ActivityIndicator, ViewStyle, TextStyle } from 'react-native';
+import { colors } from '../theme';
 
 interface ButtonProps {
   title: string;
@@ -23,20 +24,19 @@ export const Button: React.FC<ButtonProps> = ({
   icon,
 }) => {
   const getBackgroundColor = () => {
-    if (disabled) return '#334155';
+    if (disabled) return '#D9D2C6';
     switch (variant) {
-      case 'secondary': return '#1E293B';
-      case 'danger': return '#DC2626';
+      case 'secondary': return colors.accentSoft;
+      case 'danger': return colors.danger;
       case 'outline': return 'transparent';
-      case 'primary': default: return '#0D9488';
+      case 'primary': default: return colors.accent;
     }
   };
 
   const getTextColor = () => {
-    if (disabled) return '#64748B';
-    if (variant === 'outline') return '#2DD4BF';
-    if (variant === 'secondary') return '#F8FAFC';
-    return '#FFFFFF';
+    if (disabled) return colors.subtle;
+    if (variant === 'outline' || variant === 'secondary') return colors.accent;
+    return colors.onAccent;
   };
 
   return (
@@ -50,7 +50,7 @@ export const Button: React.FC<ButtonProps> = ({
       ]}
       onPress={onPress}
       disabled={disabled || loading}
-      activeOpacity={0.8}
+      activeOpacity={0.85}
     >
       {loading ? (
         <ActivityIndicator color={getTextColor()} />
@@ -70,32 +70,31 @@ const styles = StyleSheet.create({
   button: {
     paddingVertical: 14,
     paddingHorizontal: 20,
-    borderRadius: 14,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
-    elevation: 3,
-    shadowColor: '#0D9488',
+    shadowColor: colors.accent,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    elevation: 2,
   },
   outlineBorder: {
     borderWidth: 1.5,
-    borderColor: '#14B8A6',
+    borderColor: colors.accent,
     shadowOpacity: 0,
     elevation: 0,
   },
   secondaryBorder: {
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: '#D5E8E1',
     shadowOpacity: 0,
     elevation: 0,
   },
   text: {
     fontSize: 15,
     fontWeight: '700',
-    letterSpacing: 0.3,
   },
   textWithIcon: {
     marginLeft: 8,

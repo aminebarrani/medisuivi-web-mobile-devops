@@ -3,6 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { MesureDTO } from '../types';
 import { MEASURE_TYPES_CONFIG } from '../config/constants';
+import { colors } from '../theme';
 
 interface MeasureCardProps {
   mesure: MesureDTO;
@@ -34,13 +35,13 @@ export const MeasureCard: React.FC<MeasureCardProps> = ({ mesure }) => {
   const getSourceBadge = (source: string) => {
     switch (source) {
       case 'PATIENT':
-        return { label: 'Saisie Patient', bg: 'rgba(20, 184, 166, 0.15)', text: '#2DD4BF' };
+        return { label: 'Saisie patient', bg: colors.accentSoft, text: colors.accent };
       case 'MEDECIN':
-        return { label: 'Médecin', bg: 'rgba(168, 85, 247, 0.15)', text: '#C084FC' };
+        return { label: 'Médecin', bg: '#EEE8F6', text: '#6B5B95' };
       case 'CAPTEUR':
-        return { label: 'Capteur IoT', bg: 'rgba(56, 189, 248, 0.15)', text: '#38BDF8' };
+        return { label: 'Capteur', bg: '#E7F1F4', text: '#4F8F9A' };
       default:
-        return { label: source, bg: 'rgba(255, 255, 255, 0.08)', text: '#94A3B8' };
+        return { label: source, bg: colors.surface, text: colors.muted };
     }
   };
 
@@ -50,7 +51,7 @@ export const MeasureCard: React.FC<MeasureCardProps> = ({ mesure }) => {
     <View style={styles.card}>
       <View style={styles.leftSection}>
         <View style={styles.iconCircle}>
-          <Ionicons name={config.icon as any} size={22} color="#2DD4BF" />
+          <Ionicons name={config.icon as any} size={22} color={colors.accent} />
         </View>
         <View style={styles.infoContainer}>
           <Text style={styles.label}>{config.label}</Text>
@@ -75,17 +76,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#0F172A',
+    backgroundColor: colors.card,
     padding: 16,
     borderRadius: 16,
     marginVertical: 6,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    elevation: 3,
-    shadowColor: '#000000',
+    borderColor: colors.border,
+    shadowColor: '#463A28',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 1,
   },
   leftSection: {
     flexDirection: 'row',
@@ -96,9 +97,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 14,
-    backgroundColor: 'rgba(20, 184, 166, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(20, 184, 166, 0.3)',
+    backgroundColor: colors.accentSoft,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -109,11 +108,11 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#F8FAFC',
+    color: colors.ink,
   },
   date: {
     fontSize: 12,
-    color: '#94A3B8',
+    color: colors.muted,
     marginTop: 2,
   },
   rightSection: {
@@ -121,18 +120,18 @@ const styles = StyleSheet.create({
   },
   valueText: {
     fontSize: 18,
-    fontWeight: '800',
-    color: '#38BDF8',
+    fontWeight: '700',
+    color: colors.accent,
   },
   unitText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#94A3B8',
+    color: colors.muted,
   },
   sourceBadge: {
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 6,
+    borderRadius: 8,
     marginTop: 4,
   },
   sourceText: {

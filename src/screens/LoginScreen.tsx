@@ -35,11 +35,17 @@ export const LoginScreen: React.FC = () => {
         password: password.trim(),
       });
     } catch (err: any) {
-      console.error('Login error:', err);
-      const message =
-        err?.response?.data?.message ||
-        err?.message ||
-        'Impossible de se connecter. Vérifiez vos identifiants et votre connexion.';
+      const isNetworkError = err?.code === 'ERR_NETWORK' || err?.message === 'Network Error';
+      if (isNetworkError) {
+        console.warn('Login network error', err?.config?.baseURL || err?.config?.url);
+      } else {
+        console.error('Login error:', err);
+      }
+      const message = isNetworkError
+        ? "Impossible de joindre le serveur. Vérifiez que le téléphone est sur le même Wi-Fi que le PC et que l'API tourne sur le port 8222."
+        : err?.response?.data?.message ||
+          err?.message ||
+          'Impossible de se connecter. Vérifiez vos identifiants et votre connexion.';
       setErrorMsg(message);
     }
   };
@@ -78,7 +84,7 @@ export const LoginScreen: React.FC = () => {
             onChangeText={setUsernameOrEmail}
             autoCapitalize="none"
             keyboardType="email-address"
-            icon={<Ionicons name="mail-outline" size={20} color="#64748B" />}
+            icon={<Ionicons name="mail-outline" size={20} color="#8A847A" />}
           />
 
           <InputField
@@ -87,7 +93,7 @@ export const LoginScreen: React.FC = () => {
             value={password}
             onChangeText={setPassword}
             secureTextEntry={!showPassword}
-            icon={<Ionicons name="lock-closed-outline" size={20} color="#64748B" />}
+            icon={<Ionicons name="lock-closed-outline" size={20} color="#8A847A" />}
           />
 
           <TouchableOpacity
@@ -109,7 +115,7 @@ export const LoginScreen: React.FC = () => {
 
         {/* Support Footer */}
         <View style={styles.footer}>
-          <Ionicons name="shield-checkmark" size={16} color="#64748B" />
+          <Ionicons name="shield-checkmark" size={16} color="#8A847A" />
           <Text style={styles.footerText}> Données médicales protégées & sécurisées</Text>
         </View>
       </ScrollView>
@@ -120,7 +126,7 @@ export const LoginScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#020617',
+    backgroundColor: '#F3EFE6',
   },
   scrollContent: {
     flexGrow: 1,
@@ -134,59 +140,58 @@ const styles = StyleSheet.create({
   logoCircle: {
     width: 80,
     height: 80,
-    borderRadius: 40,
-    backgroundColor: '#0D9488',
+    borderRadius: 24,
+    backgroundColor: '#3D8B7A',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
-    elevation: 8,
-    shadowColor: '#14B8A6',
+    elevation: 3,
+    shadowColor: '#3D8B7A',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.5,
-    shadowRadius: 15,
+    shadowOpacity: 0.22,
+    shadowRadius: 12,
   },
   appName: {
     fontSize: 32,
-    fontWeight: '900',
-    color: '#F8FAFC',
-    letterSpacing: 0.5,
+    fontWeight: '700',
+    color: '#2C2A26',
   },
   appTagline: {
     fontSize: 14,
-    color: '#2DD4BF',
+    color: '#3D8B7A',
     marginTop: 4,
     fontWeight: '600',
   },
   card: {
-    backgroundColor: '#0F172A',
+    backgroundColor: '#FFFFFF',
     borderRadius: 24,
     padding: 24,
-    shadowColor: '#000000',
+    shadowColor: '#463A28',
     shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.4,
+    shadowOpacity: 0.08,
     shadowRadius: 20,
-    elevation: 8,
+    elevation: 3,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderColor: '#E4DDD0',
   },
   title: {
     fontSize: 24,
-    fontWeight: '800',
-    color: '#F8FAFC',
+    fontWeight: '700',
+    color: '#2C2A26',
     marginBottom: 6,
   },
   subtitle: {
     fontSize: 14,
-    color: '#94A3B8',
+    color: '#6F6B64',
     marginBottom: 20,
     lineHeight: 20,
   },
   errorContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(244, 63, 94, 0.12)',
+    backgroundColor: '#F8ECEC',
     borderWidth: 1,
-    borderColor: 'rgba(244, 63, 94, 0.35)',
+    borderColor: '#E8C6C6',
     borderRadius: 12,
     padding: 12,
     marginBottom: 16,
@@ -197,7 +202,7 @@ const styles = StyleSheet.create({
   errorBannerText: {
     flex: 1,
     fontSize: 13,
-    color: '#FB7185',
+    color: '#C45C5C',
     fontWeight: '600',
   },
   togglePasswordBtn: {
@@ -207,7 +212,7 @@ const styles = StyleSheet.create({
   },
   togglePasswordText: {
     fontSize: 13,
-    color: '#2DD4BF',
+    color: '#3D8B7A',
     fontWeight: '600',
   },
   loginBtn: {
@@ -221,7 +226,7 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: 13,
-    color: '#64748B',
+    color: '#8A847A',
     fontWeight: '500',
   },
 });

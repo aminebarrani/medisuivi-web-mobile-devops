@@ -10,7 +10,7 @@ export default function App() {
     <SafeAreaProvider>
       <AuthProvider>
         <NavigationContainer>
-          <StatusBar style="auto" />
+          <StatusBar style="dark" />
           <AppNavigator />
         </NavigationContainer>
       </AuthProvider>

@@ -15,24 +15,23 @@ export const MainTabNavigator: React.FC = () => {
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerStyle: {
-          backgroundColor: '#091124',
+          backgroundColor: '#FFFDF8',
           elevation: 0,
           shadowOpacity: 0,
           borderBottomWidth: 1,
-          borderBottomColor: 'rgba(255, 255, 255, 0.08)',
+          borderBottomColor: '#E4DDD0',
         },
         headerTitleStyle: {
-          fontWeight: '800',
-          color: '#F8FAFC',
+          fontWeight: '700',
+          color: '#2C2A26',
           fontSize: 18,
-          letterSpacing: 0.3,
         },
-        tabBarActiveTintColor: route.name === 'Alert' ? '#F43F5E' : '#2DD4BF',
-        tabBarInactiveTintColor: '#64748B',
+        tabBarActiveTintColor: route.name === 'Alert' ? '#C45C5C' : '#3D8B7A',
+        tabBarInactiveTintColor: '#8A847A',
         tabBarStyle: {
-          backgroundColor: '#091124',
+          backgroundColor: '#FFFDF8',
           borderTopWidth: 1,
-          borderTopColor: 'rgba(255, 255, 255, 0.08)',
+          borderTopColor: '#E4DDD0',
           height: 64,
           paddingBottom: 10,
           paddingTop: 8,
@@ -50,7 +49,7 @@ export const MainTabNavigator: React.FC = () => {
             iconName = focused ? 'add-circle' : 'add-circle-outline';
           } else if (route.name === 'Alert') {
             iconName = focused ? 'alert-circle' : 'alert-circle-outline';
-            color = focused ? '#F43F5E' : '#FB7185';
+            color = focused ? '#C45C5C' : '#C45C5C';
           } else if (route.name === 'History') {
             iconName = focused ? 'time' : 'time-outline';
           } else if (route.name === 'Profile') {

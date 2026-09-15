@@ -1,0 +1,8 @@
+node_modules
+.expo
+.git
+.gitignore
+npm-debug.log
+web-build
+dist
+coverage
