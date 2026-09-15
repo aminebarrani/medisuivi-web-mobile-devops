@@ -8,7 +8,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import tn.esprit.patient.dto.AlerteCreationDTO;
 import tn.esprit.patient.dto.AlerteDTO;
-import tn.esprit.patient.exception.ResourceNotFoundException;
 import tn.esprit.patient.model.Alerte;
 import tn.esprit.patient.model.NiveauRisque;
 import tn.esprit.patient.model.SourceAlerte;

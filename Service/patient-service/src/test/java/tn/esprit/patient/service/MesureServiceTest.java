@@ -15,8 +15,6 @@ import tn.esprit.patient.model.TypeMesure;
 import tn.esprit.patient.repository.MesureRepository;
 import tn.esprit.patient.repository.PatientRepository;
 
-import java.util.Optional;
-
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;

@@ -8,7 +8,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import tn.esprit.patient.dto.SymptomeCreationDTO;
 import tn.esprit.patient.dto.SymptomeDTO;
-import tn.esprit.patient.exception.ResourceNotFoundException;
 import tn.esprit.patient.model.Gravite;
 import tn.esprit.patient.model.Symptome;
 import tn.esprit.patient.repository.PatientRepository;
