@@ -28,13 +28,19 @@ export interface PatientCreationDTO {
 export interface MedecinDTO {
   id: number;
   userId: number;
-  specialite: String;
-  numeroOrdre: String;
+  specialite: string;
+  numeroOrdre: string;
 }
+
+const mapSexe = (sexe?: string): Sexe => {
+  if (sexe === 'M') return 'HOMME';
+  if (sexe === 'F') return 'FEMME';
+  return (sexe as Sexe) || 'HOMME';
+};
 
 const mapPatientSexeToFront = (p: any): PatientDTO => ({
   ...p,
-  sexe: p.sexe === 'M' ? 'HOMME' : p.sexe === 'F' ? 'FEMME' : p.sexe
+  sexe: mapSexe(p.sexe),
 });
 
 const patientService = {
@@ -49,11 +55,37 @@ const patientService = {
   },
 
   async createPatient(data: PatientCreationDTO): Promise<PatientDTO> {
+    const validRisk =
+      (data.niveauRisque as string) === 'MOYEN'
+        ? 'MODERE'
+        : data.niveauRisque || 'FAIBLE';
+    const validSexe = data.sexe === 'FEMME' || (data.sexe as string) === 'F' ? 'F' : 'M';
     const backendData = {
       ...data,
-      sexe: data.sexe === 'HOMME' ? 'M' : 'F'
+      sexe: validSexe,
+      niveauRisque: validRisk,
     };
     const res = await axiosInstance.post<PatientDTO>('/patients', backendData);
+    return mapPatientSexeToFront(res.data);
+  },
+
+  async getPatientByUserId(userId: number): Promise<PatientDTO> {
+    const res = await axiosInstance.get<PatientDTO>(`/patients/user/${userId}`);
+    return mapPatientSexeToFront(res.data);
+  },
+
+  async updatePatient(id: number, data: Partial<PatientCreationDTO>): Promise<PatientDTO> {
+    const validRisk =
+      (data.niveauRisque as string) === 'MOYEN'
+        ? 'MODERE'
+        : data.niveauRisque || 'FAIBLE';
+    const validSexe = data.sexe === 'FEMME' || (data.sexe as string) === 'F' ? 'F' : 'M';
+    const backendData = {
+      ...data,
+      sexe: validSexe,
+      niveauRisque: validRisk,
+    };
+    const res = await axiosInstance.put<PatientDTO>(`/patients/${id}`, backendData);
     return mapPatientSexeToFront(res.data);
   },
 

@@ -18,7 +18,7 @@ const LoginPage: React.FC = () => {
     setError('');
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!form.usernameOrEmail || !form.password) {
       setError('Veuillez remplir tous les champs.');
@@ -102,6 +102,7 @@ const LoginPage: React.FC = () => {
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
                 className="form-input-action"
+                aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
               >
                 {showPassword ? (
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

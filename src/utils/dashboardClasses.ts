@@ -49,3 +49,22 @@ export const pwdStrengthBarClass = (score: number, index: number) =>
   index <= score
     ? ['', 'bar-weak', 'bar-medium', 'bar-strong', 'bar-very-strong'][score] ?? ''
     : 'bar-empty';
+
+export const sourceBadgeText = (source: string): string => {
+  if (source === 'PATIENT') return '📱 Saisie Patient';
+  if (source === 'MEDECIN') return '🩺 Saisie Médecin';
+  return `📡 ${source}`;
+};
+
+export const pwdStrengthTextColor = (score: number): string => {
+  if (score <= 1) return 'text-rose-400';
+  if (score === 2) return 'text-amber-400';
+  if (score === 3) return 'text-teal-400';
+  return 'text-emerald-400';
+};
+
+export const getSecureRandomInt = (min: number, max: number): number => {
+  const array = new Uint32Array(1);
+  window.crypto.getRandomValues(array);
+  return min + (array[0] % (max - min + 1));
+};

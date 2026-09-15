@@ -1,21 +1,86 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import authService from '../services/authService';
+import authService, { type UserDTO } from '../services/authService';
 import patientService, { type PatientDTO, type NiveauRisque, type Sexe } from '../services/patientService';
 import maladieService, { type MaladieDTO } from '../services/maladieService';
 import suiviService, { type MesureDTO, type SymptomeDTO, type AlerteDTO, type TypeMesure, type Source, type Gravite } from '../services/suiviService';
 import {
   tabClass,
-  riskBadgeClass,
-  graviteBadgeClass,
   type TabType,
+  getSecureRandomInt,
 } from '../utils/dashboardClasses';
+
+import { OverviewTab } from '../components/dashboard/OverviewTab';
+import { PatientsTab } from '../components/dashboard/PatientsTab';
+import { MaladiesTab } from '../components/dashboard/MaladiesTab';
+import { SuiviTab } from '../components/dashboard/SuiviTab';
+import { AlertesTab } from '../components/dashboard/AlertesTab';
+import { ProfileTab } from '../components/dashboard/ProfileTab';
+import { DashboardModals } from '../components/dashboard/DashboardModals';
+
+const resolveDoctorProfile = async (user: UserDTO | null): Promise<number | null> => {
+  if (!user?.id) return null;
+  try {
+    const profile = await patientService.getMedecinByUserId(user.id);
+    return profile.id;
+  } catch (err: unknown) {
+    const axiosError = err as { response?: { status?: number } };
+    if (axiosError?.response?.status === 404) {
+      try {
+        const randomSuffix = getSecureRandomInt(1000, 9999);
+        const newProfile = await patientService.createMedecin({
+          userId: user.id,
+          specialite: 'Cardiologue',
+          numeroOrdre: `DR-${user.id}-${randomSuffix}`,
+        });
+        return newProfile.id;
+      } catch (createErr) {
+        console.error('Error auto-creating Medecin profile:', createErr);
+        try {
+          const existing = await patientService.getMedecinByUserId(user.id);
+          return existing.id;
+        } catch (refetchErr) {
+          console.error('Error re-fetching existing Medecin profile:', refetchErr);
+        }
+      }
+    } else {
+      console.error('Error fetching Medecin profile:', err);
+    }
+  }
+  return null;
+};
+
+const getPasswordStrength = (pwd: string): number => {
+  let score = 0;
+  if (pwd.length >= 8) score++;
+  if (/[A-Z]/.test(pwd)) score++;
+  if (/\d/.test(pwd)) score++;
+  if (/[^A-Za-z0-9]/.test(pwd)) score++;
+  return score;
+};
+
+const getPasswordStrengthLabel = (score: number): string => {
+  switch (score) {
+    case 1:
+      return 'Faible';
+    case 2:
+      return 'Moyen';
+    case 3:
+      return 'Fort';
+    case 4:
+      return 'Très robuste';
+    default:
+      return 'Très faible';
+  }
+};
 
 const DashboardPage: React.FC = () => {
   const { user, logout, updateUser } = useAuth();
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const medecinIdRef = useRef<number | null>(null);
+  const resolvedUserIdRef = useRef<number | null>(null);
 
   // Active Tab
   const [activeTab, setActiveTab] = useState<TabType>('overview');
@@ -32,7 +97,7 @@ const DashboardPage: React.FC = () => {
   const [patientSearch, setPatientSearch] = useState('');
   const [riskFilter, setRiskFilter] = useState<string>('ALL');
 
-  // Doctor's medecinProfileId
+  // Doctor profile ID
   const [medecinId, setMedecinId] = useState<number | null>(null);
 
   // Modals visibility
@@ -60,57 +125,43 @@ const DashboardPage: React.FC = () => {
   const [newMaladieForm, setNewMaladieForm] = useState({
     nom: '',
     description: '',
-    parametresSuivis: 'Tension, Glycémie',
-    seuilMin: 60,
-    seuilMax: 140,
+    parametresSuivis: '',
+    seuilMin: '',
+    seuilMax: '',
   });
 
   const [assignMaladieForm, setAssignMaladieForm] = useState({
-    patientId: 1,
-    maladieId: 1,
+    patientId: 0,
+    maladieId: 0,
     dateDiagnostic: new Date().toISOString().split('T')[0],
   });
 
   const [newMesureForm, setNewMesureForm] = useState({
-    patientId: 1,
-    typeMesure: 'TENSION' as TypeMesure,
-    valeur: 120,
-    unite: 'mmHg',
+    patientId: 0,
+    typeMesure: 'FREQUENCE_CARDIAQUE' as TypeMesure,
+    valeur: '',
+    unite: 'bpm',
     source: 'MEDECIN' as Source,
   });
 
-  const handleMeasureTypeChange = (type: TypeMesure) => {
-    let unit = 'mmHg';
-    let defaultVal = 120;
-    if (type === 'GLYCEMIE') { unit = 'g/L'; defaultVal = 1.0; }
-    else if (type === 'FREQUENCE_CARDIAQUE') { unit = 'bpm'; defaultVal = 75; }
-    else if (type === 'TEMPERATURE') { unit = '°C'; defaultVal = 37.0; }
-    else if (type === 'POIDS') { unit = 'kg'; defaultVal = 70.0; }
-    else if (type === 'SPO2') { unit = '%'; defaultVal = 98; }
-    setNewMesureForm((prev) => ({ ...prev, typeMesure: type, unite: unit, valeur: defaultVal }));
-  };
-
   const [newSymptomeForm, setNewSymptomeForm] = useState({
-    patientId: 1,
+    patientId: 0,
     description: '',
-    gravite: 'FAIBLE' as Gravite,
+    gravite: 'MODERE' as Gravite,
   });
 
-  // ─── Profile State ───────────────────────────────────────────────────────────
-  const [profilePicture, setProfilePicture] = useState<string | null>(
-    authService.getLocalProfilePicture()
-  );
-  const [isDragOver, setIsDragOver] = useState(false);
-  const [profileEditMode, setProfileEditMode] = useState(false);
+  // Profile Form State
   const [profileForm, setProfileForm] = useState({
     firstName: user?.firstName || '',
     lastName: user?.lastName || '',
     phone: user?.phone || '',
   });
+  const [profileEditMode, setProfileEditMode] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileSuccess, setProfileSuccess] = useState('');
   const [profileError, setProfileError] = useState('');
 
+  // Password Form State
   const [passwordForm, setPasswordForm] = useState({
     current: '',
     newPwd: '',
@@ -119,144 +170,109 @@ const DashboardPage: React.FC = () => {
   const [passwordSaving, setPasswordSaving] = useState(false);
   const [passwordSuccess, setPasswordSuccess] = useState('');
   const [passwordError, setPasswordError] = useState('');
-  const [showCurrentPwd, setShowCurrentPwd] = useState(false);
-  const [showNewPwd, setShowNewPwd] = useState(false);
-  const [showConfirmPwd, setShowConfirmPwd] = useState(false);
 
-  // Password strength
-  const getPasswordStrength = (pwd: string) => {
-    let score = 0;
-    if (pwd.length >= 8) score++;
-    if (/[A-Z]/.test(pwd)) score++;
-    if (/[0-9]/.test(pwd)) score++;
-    if (/[^A-Za-z0-9]/.test(pwd)) score++;
-    return score;
+  // Avatar State
+  const [avatarUploading, setAvatarUploading] = useState(false);
+
+  // Handle measure type unit defaults
+  const handleMeasureTypeChange = (type: TypeMesure) => {
+    let unite = 'bpm';
+    switch (type) {
+      case 'GLYCEMIE':
+        unite = 'g/L';
+        break;
+      case 'TENSION':
+        unite = 'mmHg';
+        break;
+      case 'TEMPERATURE':
+        unite = '°C';
+        break;
+      case 'POIDS':
+        unite = 'kg';
+        break;
+      case 'SPO2':
+        unite = '%';
+        break;
+    }
+    setNewMesureForm((prev) => ({ ...prev, typeMesure: type, unite }));
   };
-  const pwdStrength = getPasswordStrength(passwordForm.newPwd);
-  const pwdStrengthLabel = ['', 'Faible', 'Moyen', 'Fort', 'Très Fort'][pwdStrength] || '';
-  // Profile picture handlers
-  const processImageFile = useCallback((file: File) => {
-    if (!file.type.startsWith('image/')) return;
+
+  // Profile Picture Upload Handlers
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('Veuillez sélectionner un fichier image valide (JPEG, PNG, WebP).');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert('La taille du fichier ne doit pas dépasser 5 Mo.');
+      return;
+    }
+
+    setAvatarUploading(true);
     const reader = new FileReader();
-    reader.onload = (e) => {
-      const dataUrl = e.target?.result as string;
-      setProfilePicture(dataUrl);
-      authService.saveProfilePictureLocally(dataUrl);
+    reader.onload = async (event) => {
+      const base64 = event.target?.result as string;
+      if (!base64) {
+        setAvatarUploading(false);
+        return;
+      }
+      try {
+        const updated = await authService.updateProfilePicture(base64);
+        updateUser(updated);
+      } catch {
+        authService.saveProfilePictureLocally(base64);
+        if (user) {
+          updateUser({ ...user, profilePictureUrl: base64 });
+        }
+      } finally {
+        setAvatarUploading(false);
+      }
     };
     reader.readAsDataURL(file);
-  }, []);
-
-  const handleProfilePictureChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) processImageFile(file);
   };
 
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    setIsDragOver(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) processImageFile(file);
-  };
-
-  const handleRemovePicture = () => {
-    setProfilePicture(null);
-    authService.removeLocalProfilePicture();
-    if (fileInputRef.current) fileInputRef.current.value = '';
-  };
-
-  // Profile info save
-  const handleSaveProfile = async () => {
-    setProfileSaving(true);
-    setProfileError('');
-    setProfileSuccess('');
+  const handleRemoveAvatar = async () => {
+    if (!confirm('Supprimer votre photo de profil ?')) return;
+    setAvatarUploading(true);
     try {
-      const updated = await authService.updateProfile(profileForm);
+      const updated = await authService.removeProfilePicture();
       updateUser(updated);
-      setProfileSuccess('Profil mis à jour avec succès !');
-      setProfileEditMode(false);
     } catch {
-      setProfileError('Erreur lors de la mise à jour. Vérifiez que le serveur est disponible.');
+      localStorage.removeItem('medsuivi_avatar');
+      if (user) {
+        updateUser({ ...user, profilePictureUrl: undefined });
+      }
     } finally {
-      setProfileSaving(false);
-      setTimeout(() => { setProfileSuccess(''); setProfileError(''); }, 4000);
+      setAvatarUploading(false);
     }
   };
 
-  const handleCancelProfileEdit = () => {
-    setProfileForm({
-      firstName: user?.firstName || '',
-      lastName: user?.lastName || '',
-      phone: user?.phone || '',
-    });
-    setProfileEditMode(false);
-    setProfileError('');
-  };
-
-  // Change password
-  const handleChangePassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setPasswordError('');
-    setPasswordSuccess('');
-    if (passwordForm.newPwd !== passwordForm.confirm) {
-      setPasswordError('Les mots de passe ne correspondent pas.');
-      return;
-    }
-    if (passwordForm.newPwd.length < 8) {
-      setPasswordError('Le nouveau mot de passe doit contenir au moins 8 caractères.');
-      return;
-    }
-    setPasswordSaving(true);
-    try {
-      await authService.changePassword(passwordForm.current, passwordForm.newPwd);
-      setPasswordSuccess('Mot de passe changé avec succès !');
-      setPasswordForm({ current: '', newPwd: '', confirm: '' });
-    } catch {
-      setPasswordError('Échec du changement de mot de passe. Vérifiez votre mot de passe actuel.');
-    } finally {
-      setPasswordSaving(false);
-      setTimeout(() => { setPasswordSuccess(''); setPasswordError(''); }, 4000);
-    }
-  };
-
-  useEffect(() => {
-    loadDashboardData(true);
-    // Silent auto-refresh every 8 seconds to synchronize patient alerts in real-time
-    const syncInterval = setInterval(() => {
-      loadDashboardData(false);
-    }, 8000);
-    return () => clearInterval(syncInterval);
-  }, []);
-
-  const loadDashboardData = async (showSpinner = true) => {
+  // Data Loading
+  const loadDashboardData = useCallback(async (showSpinner = true) => {
     if (showSpinner) setLoading(true);
     try {
-      let activeMedecinId = 1;
-      if (user?.id) {
-        try {
-          const profile = await patientService.getMedecinByUserId(user.id);
-          activeMedecinId = profile.id;
-          setMedecinId(profile.id);
-        } catch (err: any) {
-          if (err.response?.status === 404) {
-            // Auto-create doctor profile if it doesn't exist
-            try {
-              const newProfile = await patientService.createMedecin({
-                userId: user.id,
-                specialite: 'Cardiologue',
-                numeroOrdre: `DR-${user.id}-${Math.floor(1000 + Math.random() * 9000)}`,
-              });
-              activeMedecinId = newProfile.id;
-              setMedecinId(newProfile.id);
-            } catch (createErr) {
-              console.error("Error auto-creating Medecin profile:", createErr);
-            }
-          } else {
-            console.error("Error fetching Medecin profile:", err);
-          }
-        }
+      const userChanged = resolvedUserIdRef.current !== (user?.id ?? null);
+      let activeMedecinId = userChanged ? null : medecinIdRef.current;
+      if (!activeMedecinId) {
+        activeMedecinId = await resolveDoctorProfile(user);
+        medecinIdRef.current = activeMedecinId;
+        resolvedUserIdRef.current = user?.id ?? null;
+        setMedecinId(activeMedecinId);
       }
 
-      // Try live API calls
+      if (!activeMedecinId) {
+        setPatients([]);
+        setMaladies([]);
+        setAlertes([]);
+        setMesures([]);
+        setSymptomes([]);
+        return;
+      }
+
       const [pts, mals, alrs, msrs, symp, usrs] = await Promise.allSettled([
         patientService.getPatientsByMedecin(activeMedecinId),
         maladieService.getAllMaladies(),
@@ -269,7 +285,18 @@ const DashboardPage: React.FC = () => {
       const usersList = usrs.status === 'fulfilled' ? usrs.value : [];
       const userMap = new Map(usersList.map((u) => [u.id, u]));
 
-      const loadedPatients = pts.status === 'fulfilled' ? pts.value : [];
+      let loadedPatients: PatientDTO[] = [];
+      if (pts.status === 'fulfilled') {
+        loadedPatients = pts.value;
+      } else {
+        try {
+          const allPts = await patientService.getAllPatients();
+          loadedPatients = allPts.filter((p) => p.medecinId === activeMedecinId);
+        } catch {
+          loadedPatients = [];
+        }
+      }
+
       const enrichedPatients = loadedPatients.map((p) => {
         const u = userMap.get(p.userId);
         return {
@@ -286,112 +313,193 @@ const DashboardPage: React.FC = () => {
       setMesures(msrs.status === 'fulfilled' ? msrs.value : []);
       setSymptomes(symp.status === 'fulfilled' ? symp.value : []);
     } catch (e) {
-      console.error("Failed to load dashboard data:", e);
+      console.error('Failed to load dashboard data:', e);
       setPatients([]);
       setMaladies([]);
       setAlertes([]);
       setMesures([]);
       setSymptomes([]);
     } finally {
-      setLoading(false);
+      if (showSpinner) setLoading(false);
     }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    loadDashboardData(true);
+    const syncInterval = setInterval(() => {
+      loadDashboardData(false);
+    }, 8000);
+    return () => clearInterval(syncInterval);
+  }, [loadDashboardData]);
 
   const getPatientDisplayName = (patientId: number): string => {
-    const p = patients.find((pat) => pat.id === patientId);
-    if (p && (p.prenom || p.nom)) {
-      return `${p.prenom || ''} ${p.nom || ''}`.trim();
+    const p = patients.find((pt) => pt.id === patientId);
+    if (!p) return `Patient #${patientId}`;
+    if (p.nom && p.prenom) return `${p.prenom} ${p.nom}`;
+    return `Patient #${p.id}`;
+  };
+
+  // Filtered Patients List
+  const filteredPatients = useMemo(() => {
+    return patients.filter((p) => {
+      const matchesSearch =
+        (p.nom?.toLowerCase() || '').includes(patientSearch.toLowerCase()) ||
+        (p.prenom?.toLowerCase() || '').includes(patientSearch.toLowerCase()) ||
+        p.id.toString().includes(patientSearch);
+      const matchesRisk = riskFilter === 'ALL' || p.niveauRisque === riskFilter;
+      return matchesSearch && matchesRisk;
+    });
+  }, [patients, patientSearch, riskFilter]);
+
+  const activeAlertsCount = useMemo(() => {
+    return alertes.filter((a) => !a.traitee).length;
+  }, [alertes]);
+
+  // Form Submissions
+  const handleSaveProfile = async () => {
+    setProfileSaving(true);
+    setProfileSuccess('');
+    setProfileError('');
+    try {
+      const updated = await authService.updateProfile({
+        firstName: profileForm.firstName,
+        lastName: profileForm.lastName,
+        phone: profileForm.phone,
+      });
+      updateUser(updated);
+      setProfileSuccess('Profil mis à jour avec succès !');
+      setProfileEditMode(false);
+      setTimeout(() => setProfileSuccess(''), 4000);
+    } catch (err: unknown) {
+      const axiosError = err as { response?: { data?: { message?: string } } };
+      setProfileError(axiosError?.response?.data?.message || 'Erreur lors de la mise à jour du profil.');
+    } finally {
+      setProfileSaving(false);
     }
-    return `Patient #${patientId}`;
   };
 
-  // Synchronize form defaults whenever patients or maladies change
-  useEffect(() => {
-    if (patients.length > 0) {
-      const firstPatientId = patients[0].id;
-      setNewMesureForm((prev) => ({
-        ...prev,
-        patientId: patients.some((p) => p.id === prev.patientId) ? prev.patientId : firstPatientId,
-      }));
-      setNewSymptomeForm((prev) => ({
-        ...prev,
-        patientId: patients.some((p) => p.id === prev.patientId) ? prev.patientId : firstPatientId,
-      }));
-      setAssignMaladieForm((prev) => ({
-        ...prev,
-        patientId: patients.some((p) => p.id === prev.patientId) ? prev.patientId : firstPatientId,
-      }));
+  const handleChangePassword = async (e: React.SubmitEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setPasswordSuccess('');
+    setPasswordError('');
+
+    if (passwordForm.newPwd.length < 8) {
+      setPasswordError('Le nouveau mot de passe doit comporter au moins 8 caractères.');
+      return;
     }
-  }, [patients]);
-
-  useEffect(() => {
-    if (maladies.length > 0) {
-      const firstMaladieId = maladies[0].id;
-      setAssignMaladieForm((prev) => ({
-        ...prev,
-        maladieId: maladies.some((m) => m.id === prev.maladieId) ? prev.maladieId : firstMaladieId,
-      }));
+    if (!/[A-Z]/.test(passwordForm.newPwd)) {
+      setPasswordError('Le nouveau mot de passe doit contenir au moins une lettre majuscule.');
+      return;
     }
-  }, [maladies]);
+    if (!/\d/.test(passwordForm.newPwd)) {
+      setPasswordError('Le nouveau mot de passe doit contenir au moins un chiffre.');
+      return;
+    }
+    if (passwordForm.newPwd !== passwordForm.confirm) {
+      setPasswordError('Les mots de passe ne correspondent pas.');
+      return;
+    }
 
-  const openAddMesureModal = (patientId?: number) => {
-    const targetId = patientId || (patients.length > 0 ? patients[0].id : 1);
-    setNewMesureForm((prev) => ({ ...prev, patientId: targetId }));
-    setShowAddMesureModal(true);
+    setPasswordSaving(true);
+    try {
+      const res = await authService.changePassword(passwordForm.current, passwordForm.newPwd);
+      setPasswordSuccess(res.message || 'Mot de passe modifié avec succès !');
+      setPasswordForm({ current: '', newPwd: '', confirm: '' });
+      setTimeout(() => setPasswordSuccess(''), 5000);
+    } catch (err: unknown) {
+      const axiosError = err as { response?: { data?: { message?: string } } };
+      setPasswordError(axiosError?.response?.data?.message || 'Mot de passe actuel incorrect ou erreur serveur.');
+    } finally {
+      setPasswordSaving(false);
+    }
   };
 
-  const openAddSymptomeModal = (patientId?: number) => {
-    const targetId = patientId || (patients.length > 0 ? patients[0].id : 1);
-    setNewSymptomeForm((prev) => ({ ...prev, patientId: targetId }));
-    setShowAddSymptomeModal(true);
-  };
-
-  const openAssignMaladieModal = (patientId?: number) => {
-    const targetPatientId = patientId || (patients.length > 0 ? patients[0].id : 1);
-    const targetMaladieId = maladies.length > 0 ? maladies[0].id : 1;
-    setAssignMaladieForm((prev) => ({ ...prev, patientId: targetPatientId, maladieId: targetMaladieId }));
-    setShowAssignMaladieModal(true);
-  };
-
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
-  };
-
-  // Handlers for Form Submissions
-  const handleAddPatient = async (e: React.FormEvent) => {
+  const handleAddPatient = async (e: React.SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     try {
-      // 1. Create the User account in user-service with PATIENT role
-      const registeredUser = await authService.register({
-        username: newPatientForm.username,
-        email: newPatientForm.email,
-        password: newPatientForm.password,
-        firstName: newPatientForm.prenom,
-        lastName: newPatientForm.nom,
-        role: 'PATIENT',
-        active: true,
-      });
+      let targetUserId: number | null = null;
 
-      // 2. Create the Patient profile linked to the new User ID in patient-service
-      const created = await patientService.createPatient({
-        userId: registeredUser.id,
-        medecinId: medecinId || 1,
-        dateNaissance: newPatientForm.dateNaissance,
-        sexe: newPatientForm.sexe,
-        niveauRisque: newPatientForm.niveauRisque,
-      });
+      try {
+        const regUser = await authService.register({
+          username: newPatientForm.username,
+          email: newPatientForm.email,
+          password: newPatientForm.password,
+          firstName: newPatientForm.prenom,
+          lastName: newPatientForm.nom,
+          role: 'PATIENT',
+          active: true,
+        });
+        targetUserId = regUser.id;
+      } catch (regErr: unknown) {
+        const axiosRegErr = regErr as { response?: { data?: { message?: string } } };
+        const regMsg = axiosRegErr?.response?.data?.message || '';
 
-      const enriched: PatientDTO = {
-        ...created,
-        nom: newPatientForm.nom,
-        prenom: newPatientForm.prenom,
-        email: newPatientForm.email,
-      };
-      setPatients([enriched, ...patients]);
-      alert(`Patient '${newPatientForm.prenom} ${newPatientForm.nom}' enregistré avec succès !`);
-      
-      // Reset form
+        // If username or email is already taken in user-service, check if we can reuse the existing user
+        if (regMsg.includes('already taken') || regMsg.includes('already registered')) {
+          const allUsers = await authService.getAllUsers();
+          const existing = allUsers.find(
+            (u) =>
+              u.username.toLowerCase() === newPatientForm.username.toLowerCase() ||
+              u.email.toLowerCase() === newPatientForm.email.toLowerCase()
+          );
+          if (existing) {
+            targetUserId = existing.id;
+          } else {
+            throw regErr;
+          }
+        } else {
+          throw regErr;
+        }
+      }
+
+      if (!targetUserId) {
+        throw new Error("Impossible de récupérer l'identifiant utilisateur.");
+      }
+
+      let currentMedId = medecinId || medecinIdRef.current;
+      if (!currentMedId) {
+        currentMedId = await resolveDoctorProfile(user);
+        medecinIdRef.current = currentMedId;
+        resolvedUserIdRef.current = user?.id ?? null;
+        setMedecinId(currentMedId);
+      }
+      if (!currentMedId) {
+        throw new Error('Profil médecin introuvable. Reconnectez-vous et réessayez.');
+      }
+
+      try {
+        await patientService.createPatient({
+          userId: targetUserId,
+          medecinId: currentMedId,
+          dateNaissance: newPatientForm.dateNaissance,
+          sexe: newPatientForm.sexe,
+          niveauRisque: newPatientForm.niveauRisque,
+        });
+      } catch (patErr: unknown) {
+        const axiosPatErr = patErr as { response?: { data?: { message?: string } } };
+        const patMsg = axiosPatErr?.response?.data?.message || '';
+        if (patMsg.toLowerCase().includes('already exists')) {
+          console.warn('Patient profile already existed for userId:', targetUserId);
+          try {
+            const existing = await patientService.getPatientByUserId(targetUserId);
+            if (existing && existing.medecinId !== currentMedId) {
+              await patientService.updatePatient(existing.id, {
+                userId: targetUserId,
+                medecinId: currentMedId,
+                dateNaissance: existing.dateNaissance || newPatientForm.dateNaissance,
+                sexe: existing.sexe || newPatientForm.sexe,
+                niveauRisque: existing.niveauRisque || newPatientForm.niveauRisque,
+              });
+            }
+          } catch (reassignErr) {
+            console.warn('Could not reassign patient to current doctor:', reassignErr);
+          }
+        } else {
+          throw patErr;
+        }
+      }
+
+      setShowAddPatientModal(false);
       setNewPatientForm({
         username: '',
         email: '',
@@ -399,146 +507,132 @@ const DashboardPage: React.FC = () => {
         nom: '',
         prenom: '',
         dateNaissance: '1990-05-15',
-        sexe: 'HOMME' as Sexe,
-        niveauRisque: 'FAIBLE' as NiveauRisque,
+        sexe: 'HOMME',
+        niveauRisque: 'FAIBLE',
       });
-      setShowAddPatientModal(false);
-    } catch (err: any) {
-      console.error("Error creating patient:", err);
-      alert(
-        err.response?.data?.message ||
-        err.message ||
-        "Une erreur s'est produite lors de l'enregistrement du patient. Vérifiez que les microservices backend sont démarrés."
-      );
+      loadDashboardData(false);
+    } catch (err: unknown) {
+      console.error('Failed to create patient:', err);
+      const axiosErr = err as {
+        response?: {
+          data?: {
+            message?: string;
+            errors?: Record<string, string>;
+          };
+        };
+        message?: string;
+      };
+      const detailMsg =
+        axiosErr?.response?.data?.message ||
+        (axiosErr?.response?.data?.errors
+          ? Object.values(axiosErr.response.data.errors).join(', ')
+          : '') ||
+        axiosErr?.message ||
+        'Erreur inconnue lors de la création du patient.';
+      alert(`Erreur : ${detailMsg}`);
     }
   };
 
-  const handleAddMaladie = async (e: React.FormEvent) => {
+  const handleAddMaladie = async (e: React.SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     try {
-      const created = await maladieService.createMaladie(newMaladieForm);
-      setMaladies([...maladies, created]);
-    } catch {
-      const mockNew: MaladieDTO = {
-        id: maladies.length + 1,
-        ...newMaladieForm,
-      };
-      setMaladies([...maladies, mockNew]);
+      await maladieService.createMaladie({
+        nom: newMaladieForm.nom,
+        description: newMaladieForm.description,
+        parametresSuivis: newMaladieForm.parametresSuivis,
+        seuilMin: newMaladieForm.seuilMin ? parseFloat(newMaladieForm.seuilMin) : undefined,
+        seuilMax: newMaladieForm.seuilMax ? parseFloat(newMaladieForm.seuilMax) : undefined,
+      });
+      setShowAddMaladieModal(false);
+      setNewMaladieForm({ nom: '', description: '', parametresSuivis: '', seuilMin: '', seuilMax: '' });
+      loadDashboardData(false);
+    } catch (err) {
+      console.error('Failed to create maladie:', err);
+      alert('Erreur lors de la création de la pathologie.');
     }
-    setShowAddMaladieModal(false);
   };
 
-  const handleAssignMaladie = async (e: React.FormEvent) => {
+  const handleAssignMaladie = async (e: React.SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
-    let finalPatientId = assignMaladieForm.patientId;
-    if (!patients.some((p) => p.id === finalPatientId)) {
-      if (patients.length > 0) {
-        finalPatientId = patients[0].id;
-      } else {
-        alert("Veuillez d'abord ajouter un patient avant d'affecter une pathologie.");
-        return;
-      }
+    if (!assignMaladieForm.patientId || !assignMaladieForm.maladieId) {
+      alert('Veuillez sélectionner un patient et une pathologie.');
+      return;
     }
-
-    let finalMaladieId = assignMaladieForm.maladieId;
-    if (!maladies.some((m) => m.id === finalMaladieId)) {
-      if (maladies.length > 0) {
-        finalMaladieId = maladies[0].id;
-      } else {
-        alert("Veuillez d'abord créer une pathologie.");
-        return;
-      }
-    }
-
     try {
       await maladieService.addMaladieToPatient({
-        ...assignMaladieForm,
-        patientId: finalPatientId,
-        maladieId: finalMaladieId,
+        patientId: assignMaladieForm.patientId,
+        maladieId: assignMaladieForm.maladieId,
+        dateDiagnostic: assignMaladieForm.dateDiagnostic,
       });
-      alert('Maladie attribuée au patient avec succès !');
       setShowAssignMaladieModal(false);
-    } catch (err: any) {
-      alert(err.response?.data?.message || err.message || 'Diagnostic enregistré avec succès !');
-      setShowAssignMaladieModal(false);
+      loadDashboardData(false);
+      alert('Pathologie associée au dossier patient avec succès !');
+    } catch (err) {
+      console.error('Failed to assign maladie:', err);
+      alert("Erreur lors de l'affectation de la pathologie.");
     }
   };
 
-  const handleAddMesure = async (e: React.FormEvent) => {
+  const handleAddMesure = async (e: React.SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
-    let finalPatientId = newMesureForm.patientId;
-    if (!patients.some((p) => p.id === finalPatientId)) {
-      if (patients.length > 0) {
-        finalPatientId = patients[0].id;
-      } else {
-        alert("Veuillez d'abord ajouter un patient avant d'enregistrer une mesure.");
-        return;
-      }
+    if (!newMesureForm.patientId) {
+      alert('Veuillez sélectionner un patient.');
+      return;
     }
-
     try {
-      const payload = {
-        ...newMesureForm,
-        patientId: finalPatientId,
-      };
-      const created = await suiviService.createMesure(payload);
-      setMesures([created, ...mesures]);
-      alert('Mesure enregistrée avec succès !');
+      await suiviService.createMesure({
+        patientId: newMesureForm.patientId,
+        typeMesure: newMesureForm.typeMesure,
+        valeur: parseFloat(newMesureForm.valeur),
+        unite: newMesureForm.unite,
+        source: newMesureForm.source,
+      });
       setShowAddMesureModal(false);
-    } catch (err: any) {
-      alert(err.response?.data?.message || err.message || "Erreur lors de l'enregistrement de la mesure.");
+      setNewMesureForm({
+        patientId: 0,
+        typeMesure: 'FREQUENCE_CARDIAQUE',
+        valeur: '',
+        unite: 'bpm',
+        source: 'MEDECIN',
+      });
+      loadDashboardData(false);
+    } catch (err) {
+      console.error('Failed to add mesure:', err);
+      alert("Erreur lors de l'enregistrement de la mesure.");
     }
   };
 
-  const handleAddSymptome = async (e: React.FormEvent) => {
+  const handleAddSymptome = async (e: React.SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
-    let finalPatientId = newSymptomeForm.patientId;
-    if (!patients.some((p) => p.id === finalPatientId)) {
-      if (patients.length > 0) {
-        finalPatientId = patients[0].id;
-      } else {
-        alert("Veuillez d'abord ajouter un patient avant de signaler un symptôme.");
-        return;
-      }
+    if (!newSymptomeForm.patientId) {
+      alert('Veuillez sélectionner un patient.');
+      return;
     }
-
     try {
-      const payload = {
-        ...newSymptomeForm,
-        patientId: finalPatientId,
-      };
-      const created = await suiviService.createSymptome(payload);
-      setSymptomes([created, ...symptomes]);
-      alert('Symptôme enregistré avec succès !');
+      await suiviService.createSymptome({
+        patientId: newSymptomeForm.patientId,
+        description: newSymptomeForm.description,
+        gravite: newSymptomeForm.gravite,
+      });
       setShowAddSymptomeModal(false);
-    } catch (err: any) {
-      alert(err.response?.data?.message || err.message || "Erreur lors de l'enregistrement du symptôme.");
+      setNewSymptomeForm({
+        patientId: 0,
+        description: '',
+        gravite: 'MODERE',
+      });
+      loadDashboardData(false);
+    } catch (err) {
+      console.error('Failed to report symptome:', err);
+      alert('Erreur lors du signalement du symptôme.');
     }
   };
 
-  const handleMarkAlerteTraitee = async (alerteId: number) => {
+  const handleUpdateRisk = async (patientId: number, newRisk: NiveauRisque) => {
     try {
-      await suiviService.markAlerteTraitee(alerteId);
-    } catch {
-      // local update fallback
-    }
-    setAlertes(alertes.map((a) => (a.id === alerteId ? { ...a, traitee: true } : a)));
-  };
-
-  const handleUpdateRisk = async (patientId: number, risk: NiveauRisque) => {
-    const backendRisk = (risk === 'MOYEN' ? 'MODERE' : risk) as NiveauRisque;
-    try {
-      await patientService.updateNiveauRisque(patientId, backendRisk);
-      setPatients((prev) =>
-        prev.map((p) => (p.id === patientId ? { ...p, niveauRisque: backendRisk } : p))
-      );
-      if (selectedPatient && selectedPatient.id === patientId) {
-        setSelectedPatient({ ...selectedPatient, niveauRisque: backendRisk });
-      }
-      alert(`Niveau de risque mis à jour vers '${backendRisk}' avec succès !`);
-    } catch (err: any) {
+      await patientService.updateNiveauRisque(patientId, newRisk);
+      loadDashboardData(false);
+    } catch (err) {
       console.error('Failed to update risk:', err);
-      alert(err.response?.data?.message || err.message || 'Erreur lors de la mise à jour du risque.');
     }
   };
 
@@ -548,1635 +642,288 @@ const DashboardPage: React.FC = () => {
     try {
       const res = await patientService.predictRisk(patientId);
       setPredictionResult(res);
-      // Map gravity response to local NiveauRisque
-      const mappedRisk = (res.gravite === 'GRAVE' ? 'ELEVE' : res.gravite) as NiveauRisque;
-      
-      setPatients((prev) =>
-        prev.map((p) => (p.id === patientId ? { ...p, niveauRisque: mappedRisk } : p))
-      );
-      setSelectedPatient((prev) =>
-        prev && prev.id === patientId ? { ...prev, niveauRisque: mappedRisk } : prev
-      );
+      loadDashboardData(false);
     } catch (err) {
-      console.error("Error predicting risk:", err);
-      alert("Erreur lors de la prédiction de risque ML. Assurez-vous que le serveur de prédiction FastAPI et le patient-service sont démarrés.");
+      console.error('Failed to run AI risk prediction:', err);
+      alert('Impossible de contacter le service prédictif IA.');
     } finally {
       setPredictingRisk(false);
     }
   };
 
-  // Filtered patients
-  const filteredPatients = patients.filter((p) => {
-    const matchesSearch =
-      (p.nom || '').toLowerCase().includes(patientSearch.toLowerCase()) ||
-      (p.prenom || '').toLowerCase().includes(patientSearch.toLowerCase()) ||
-      p.id.toString().includes(patientSearch);
-    const matchesRisk = riskFilter === 'ALL' || p.niveauRisque === riskFilter;
-    return matchesSearch && matchesRisk;
-  });
+  const handleMarkAlerteTraitee = async (alerteId: number) => {
+    try {
+      await suiviService.markAlerteTraitee(alerteId);
+      loadDashboardData(false);
+    } catch (err) {
+      console.error('Failed to mark alerte as traitee:', err);
+    }
+  };
 
-  const activeAlertsCount = alertes.filter((a) => !a.traitee).length;
+  const openAssignMaladieModal = (patientId?: number) => {
+    if (patientId) {
+      setAssignMaladieForm((prev) => ({ ...prev, patientId }));
+    }
+    setShowAssignMaladieModal(true);
+  };
+
+  const openAddMesureModal = (patientId?: number) => {
+    if (patientId) {
+      setNewMesureForm((prev) => ({ ...prev, patientId }));
+    }
+    setShowAddMesureModal(true);
+  };
+
+  const openAddSymptomeModal = (patientId?: number) => {
+    if (patientId) {
+      setNewSymptomeForm((prev) => ({ ...prev, patientId }));
+    }
+    setShowAddSymptomeModal(true);
+  };
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
 
   return (
-    <div className="dashboard-page">
+    <div className="dash-container">
       {/* Top Navbar */}
-      <nav className="dashboard-nav">
-        <div className="dash-container">
-          <div className="dash-nav-inner">
-            {/* Brand Logo */}
-            <div className="dash-brand">
-              <div className="dash-brand-icon">
-                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                </svg>
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="dash-brand-name">MedSuivi</span>
-                  <span className="dash-brand-badge">Espace Médecin</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Doctor Info & Logout */}
-            <div className="flex items-center gap-4">
-              <div className="dash-user-block">
-                <div className="dash-user-avatar overflow-hidden">
-                  {profilePicture ? (
-                    <img src={profilePicture} alt="Photo de profil" className="w-full h-full object-cover" />
-                  ) : (
-                    <span>{user?.firstName?.[0] || 'D'}{user?.lastName?.[0] || 'R'}</span>
-                  )}
-                </div>
-                <div className="text-right">
-                  <p className="dash-user-name">Dr. {user?.firstName || 'Médecin'} {user?.lastName || ''}</p>
-                  <p className="dash-user-role">Cardiologie / Suivi Médical</p>
-                </div>
-              </div>
-
-              <button
-                id="refresh-button"
-                onClick={() => loadDashboardData()}
-                className="dash-btn-ghost flex items-center gap-1.5 text-teal-400 hover:text-teal-300 border border-teal-500/30 px-3 py-1.5 rounded-xl text-xs font-semibold"
-                title="Actualiser les données en direct"
-              >
-                <svg className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                <span className="hidden sm:inline">Actualiser</span>
-              </button>
-
-              <button
-                id="logout-button"
-                onClick={handleLogout}
-                className="dash-btn-logout"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                </svg>
-                <span className="hidden sm:inline">Déconnexion</span>
-              </button>
+      <header className="dash-header">
+        <div className="dash-header-inner">
+          <div className="flex items-center gap-3">
+            <div className="dash-brand-icon">🩺</div>
+            <div>
+              <span className="dash-brand-title">MedSuivi</span>
+              <span className="dash-brand-badge">Clinical Platform</span>
             </div>
           </div>
+
+          <div className="flex items-center gap-4">
+            <div className="dash-sync-indicator">
+              <span className="dash-sync-dot" />
+              <span>Sync active</span>
+            </div>
+
+            <button
+              onClick={() => setActiveTab('profile')}
+              className="dash-user-badge group text-left"
+              title="Gérer mon profil"
+            >
+              <div className="dash-avatar-sm">
+                {user?.profilePictureUrl ? (
+                  <img
+                    src={user.profilePictureUrl}
+                    alt={`Dr. ${user?.firstName} ${user?.lastName}`}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <span>{user?.firstName?.[0] || 'D'}</span>
+                )}
+              </div>
+              <div className="hidden sm:block text-left">
+                <p className="text-xs font-bold text-white group-hover:text-teal-300 transition-colors">
+                  Dr. {user?.firstName} {user?.lastName}
+                </p>
+                <p className="text-[11px] text-teal-400">Médecin Référent</p>
+              </div>
+            </button>
+
+            <button
+              onClick={handleLogout}
+              className="dash-btn-ghost text-xs text-rose-400 hover:text-rose-300"
+            >
+              Déconnexion
+            </button>
+          </div>
         </div>
-      </nav>
+      </header>
 
       {/* Main Container */}
       <main className="dash-main">
-
-        {/* Tab Navigation */}
+        {/* Navigation Tabs Bar */}
         <div className="dashboard-tab-bar">
-          <button onClick={() => setActiveTab('overview')} className={tabClass(activeTab, 'overview')}>
+          <button
+            onClick={() => setActiveTab('overview')}
+            className={tabClass(activeTab, 'overview')}
+          >
             📊 Vue d'ensemble
           </button>
-
-          <button onClick={() => setActiveTab('patients')} className={tabClass(activeTab, 'patients')}>
+          <button
+            onClick={() => setActiveTab('patients')}
+            className={tabClass(activeTab, 'patients')}
+          >
             👥 Mes Patients ({patients.length})
           </button>
-
-          <button onClick={() => setActiveTab('maladies')} className={tabClass(activeTab, 'maladies')}>
+          <button
+            onClick={() => setActiveTab('maladies')}
+            className={tabClass(activeTab, 'maladies')}
+          >
             🩺 Pathologies ({maladies.length})
           </button>
-
-          <button onClick={() => setActiveTab('suivi')} className={tabClass(activeTab, 'suivi')}>
-            📈 Suivi Médical
+          <button
+            onClick={() => setActiveTab('suivi')}
+            className={tabClass(activeTab, 'suivi')}
+          >
+            📈 Suivi & Constantes
           </button>
-
-          <button onClick={() => setActiveTab('alertes')} className={tabClass(activeTab, 'alertes')}>
-            ⚠️ Alertes Médicales
+          <button
+            onClick={() => setActiveTab('alertes')}
+            className={tabClass(activeTab, 'alertes')}
+          >
+            🚨 Centre Alertes
             {activeAlertsCount > 0 && (
-              <span className="dash-alert-count">{activeAlertsCount}</span>
+              <span className="dash-alert-counter">{activeAlertsCount}</span>
             )}
           </button>
-
-          <button onClick={() => setActiveTab('profile')} className={tabClass(activeTab, 'profile')}>
+          <button
+            onClick={() => setActiveTab('profile')}
+            className={tabClass(activeTab, 'profile')}
+          >
             <div className={`dash-tab-avatar ${activeTab === 'profile' ? 'dash-tab-avatar-active' : 'dash-tab-avatar-inactive'}`}>
-              {profilePicture
-                ? <img src={profilePicture} alt="avatar" />
-                : <span>{user?.firstName?.[0] || 'D'}{user?.lastName?.[0] || 'R'}</span>
-              }
+              {user?.profilePictureUrl ? (
+                <img
+                  src={user.profilePictureUrl}
+                  alt="Avatar"
+                  className="w-full h-full object-cover rounded-full"
+                />
+              ) : (
+                <span>👤</span>
+              )}
             </div>
             Mon Profil
           </button>
         </div>
 
-        {/* Loading Spinner */}
+        {/* Content Views */}
         {loading ? (
-          <div className="dash-loading">
-            <div className="dash-loading-spinner" />
-            <p className="dash-loading-text">Chargement des données médicales...</p>
+          <div className="dash-loading-box">
+            <div className="dash-spinner" />
+            <p className="text-slate-400 font-medium">Chargement des données cliniques...</p>
           </div>
         ) : (
           <>
-            {/* TAB 1: OVERVIEW */}
             {activeTab === 'overview' && (
-              <div className="dash-section">
-                {/* Welcome Card */}
-                <div className="dash-hero">
-                  <div className="dash-hero-glow" />
-                  <div className="relative z-10">
-                    <span className="dash-hero-tag">
-                      Tableau de Bord Clinique
-                    </span>
-                    <h1 className="dash-hero-title">
-                      Bienvenue, Dr. {user?.firstName} {user?.lastName} 👋
-                    </h1>
-                    <p className="dash-hero-desc">
-                      Gérez les paramètres de santé de vos patients, surveillez les mesures critiques et traitez les alertes en temps réel.
-                    </p>
-                  </div>
-                </div>
-
-                {/* KPI Metrics Grid */}
-                <div className="dash-grid-4">
-                  <div className="dash-stat-card">
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="p-3 bg-teal-500/10 rounded-xl text-teal-400 text-xl">👥</span>
-                      <span className="text-xs font-semibold text-teal-400 bg-teal-500/10 px-2.5 py-1 rounded-full">Total</span>
-                    </div>
-                    <p className="dash-stat-value">{patients.length}</p>
-                    <p className="dash-stat-label">Patients sous suivi</p>
-                  </div>
-
-                  <div className="dash-stat-card">
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="p-3 bg-rose-500/10 rounded-xl text-rose-400 text-xl">🚨</span>
-                      <span className="text-xs font-semibold text-rose-400 bg-rose-500/10 px-2.5 py-1 rounded-full">Urgences</span>
-                    </div>
-                    <p className="dash-stat-value">
-                      {patients.filter((p) => p.niveauRisque === 'CRITIQUE' || p.niveauRisque === 'ELEVE').length}
-                    </p>
-                    <p className="dash-stat-label">Patients à risque élevé / critique</p>
-                  </div>
-
-                  <div className="dash-stat-card">
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="p-3 bg-amber-500/10 rounded-xl text-amber-400 text-xl">⚠️</span>
-                      <span className="text-xs font-semibold text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-full">Actives</span>
-                    </div>
-                    <p className="dash-stat-value">{activeAlertsCount}</p>
-                    <p className="dash-stat-label">Alertes non traitées</p>
-                  </div>
-
-                  <div className="dash-stat-card">
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="p-3 bg-cyan-500/10 rounded-xl text-cyan-400 text-xl">🩺</span>
-                      <span className="text-xs font-semibold text-cyan-400 bg-cyan-500/10 px-2.5 py-1 rounded-full">Catalogue</span>
-                    </div>
-                    <p className="dash-stat-value">{maladies.length}</p>
-                    <p className="dash-stat-label">Pathologies enregistrées</p>
-                  </div>
-                </div>
-
-                {/* Active Alerts Preview & Quick Actions */}
-                <div className="dash-grid-3">
-                  {/* Active Alerts */}
-                  <div className="dash-panel lg:col-span-2">
-                    <div className="flex items-center justify-between mb-6">
-                      <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                        <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping" />
-                        Alertes Récentes Prioritaires
-                      </h2>
-                      <button
-                        onClick={() => setActiveTab('alertes')}
-                        className="text-xs text-teal-400 hover:underline font-semibold"
-                      >
-                        Voir tout →
-                      </button>
-                    </div>
-
-                    <div className="space-y-3">
-                      {alertes.filter((a) => !a.traitee).slice(0, 3).map((a) => (
-                        <div
-                          key={a.id}
-                          className="dash-list-item-row"
-                        >
-                          <div>
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className={`badge ${riskBadgeClass(a.niveauRisque)}`}>
-                                {a.niveauRisque}
-                              </span>
-                              <span className="badge-source">Source: {a.source}</span>
-                              <span className="text-xs font-semibold text-teal-400">{getPatientDisplayName(a.patientId)}</span>
-                            </div>
-                            <p className="text-sm font-semibold text-white mt-1">{a.description}</p>
-                          </div>
-                          <button
-                            onClick={() => handleMarkAlerteTraitee(a.id)}
-                            className="dash-btn-accent-sm self-start sm:self-center"
-                          >
-                            Acquitter
-                          </button>
-                        </div>
-                      ))}
-                      {alertes.filter((a) => !a.traitee).length === 0 && (
-                        <p className="text-slate-500 text-sm py-4 text-center">Aucune alerte active à traiter.</p>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Quick Action Cards */}
-                  <div className="dash-panel space-y-4">
-                    <h2 className="text-lg font-bold text-white mb-4">Actions Rapides</h2>
-                    
-                    <button
-                      onClick={() => setShowAddPatientModal(true)}
-                      className="dash-action-primary"
-                    >
-                      <div className="dash-action-icon bg-teal-500/20 text-teal-400">
-                        +
-                      </div>
-                      <div>
-                        <p className="dash-action-title">Ajouter un Patient</p>
-                        <p className="dash-action-desc">Créer un nouveau profil de suivi</p>
-                      </div>
-                    </button>
-
-                    <button
-                      onClick={() => openAssignMaladieModal()}
-                      className="dash-action-secondary"
-                    >
-                      <div className="dash-action-icon bg-cyan-500/20 text-cyan-400">
-                        🩺
-                      </div>
-                      <div>
-                        <p className="dash-action-title">Affecter une Pathologie</p>
-                        <p className="dash-action-desc">Lier une maladie à un patient</p>
-                      </div>
-                    </button>
-
-                    <button
-                      onClick={() => openAddMesureModal()}
-                      className="dash-action-secondary"
-                    >
-                      <div className="dash-action-icon bg-amber-500/20 text-amber-400">
-                        📈
-                      </div>
-                      <div>
-                        <p className="dash-action-title">Enregistrer une Mesure</p>
-                        <p className="dash-action-desc">Saisir constantes (Tension, Glycémie...)</p>
-                      </div>
-                    </button>
-                  </div>
-                </div>
-              </div>
+              <OverviewTab
+                user={user}
+                patients={patients}
+                maladies={maladies}
+                alertes={alertes}
+                activeAlertsCount={activeAlertsCount}
+                onViewAllAlerts={() => setActiveTab('alertes')}
+                getPatientDisplayName={getPatientDisplayName}
+                onMarkAlerteTraitee={handleMarkAlerteTraitee}
+                onAddPatient={() => setShowAddPatientModal(true)}
+                onAssignMaladie={() => openAssignMaladieModal()}
+                onAddMesure={() => openAddMesureModal()}
+              />
             )}
 
-            {/* TAB 2: PATIENTS MANAGEMENT */}
             {activeTab === 'patients' && (
-              <div className="dash-section-sm">
-                {/* Search & Action Bar */}
-                <div className="dash-toolbar">
-                  <div className="flex items-center gap-3 w-full sm:w-auto">
-                    <input
-                      type="text"
-                      placeholder="Rechercher par nom, prénom ou ID..."
-                      value={patientSearch}
-                      onChange={(e) => setPatientSearch(e.target.value)}
-                      className="dash-search"
-                    />
-                    <select
-                      value={riskFilter}
-                      onChange={(e) => setRiskFilter(e.target.value)}
-                      className="dash-select"
-                    >
-                      <option value="ALL">Tous les risques</option>
-                      <option value="FAIBLE">FAIBLE</option>
-                      <option value="MOYEN">MOYEN</option>
-                      <option value="ELEVE">ÉLEVÉ</option>
-                      <option value="CRITIQUE">CRITIQUE</option>
-                    </select>
-                  </div>
-
-                  <button
-                    onClick={() => setShowAddPatientModal(true)}
-                    className="dash-btn-gradient w-full sm:w-auto"
-                  >
-                    <span>+ Nouveau Patient</span>
-                  </button>
-                </div>
-
-                {/* Patient Table */}
-                <div className="dash-table-wrap">
-                  <div className="dash-table-scroll">
-                    <table className="dash-table">
-                      <thead>
-                        <tr>
-                          <th>ID</th>
-                          <th>Patient</th>
-                          <th>Date Naissance</th>
-                          <th>Sexe</th>
-                          <th>Niveau de Risque</th>
-                          <th className="text-right">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredPatients.map((p) => (
-                          <tr key={p.id}>
-                            <td className="text-id">#{p.id}</td>
-                            <td>
-                              <span className="font-semibold text-white">{p.nom ? `${p.prenom} ${p.nom}` : `Patient #${p.id}`}</span>
-                              <div className="text-muted-xs">User ID: {p.userId}</div>
-                            </td>
-                            <td>{p.dateNaissance}</td>
-                            <td>{p.sexe}</td>
-                            <td>
-                              <span className={`badge ${riskBadgeClass(p.niveauRisque)}`}>
-                                {p.niveauRisque}
-                              </span>
-                            </td>
-                            <td className="text-right space-x-2">
-                              <button
-                                onClick={() => setSelectedPatient(p)}
-                                className="dash-btn-ghost"
-                              >
-                                Profil
-                              </button>
-                              <select
-                                value={p.niveauRisque === 'MOYEN' ? 'MODERE' : p.niveauRisque}
-                                onChange={(e) => handleUpdateRisk(p.id, e.target.value as NiveauRisque)}
-                                className="dash-select text-xs"
-                              >
-                                <option value="FAIBLE">Niveau: FAIBLE</option>
-                                <option value="MODERE">Niveau: MODÉRÉ</option>
-                                <option value="ELEVE">Niveau: ÉLEVÉ</option>
-                                <option value="CRITIQUE">Niveau: CRITIQUE</option>
-                              </select>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
+              <PatientsTab
+                patientSearch={patientSearch}
+                setPatientSearch={setPatientSearch}
+                riskFilter={riskFilter}
+                setRiskFilter={setRiskFilter}
+                filteredPatients={filteredPatients}
+                onAddPatient={() => setShowAddPatientModal(true)}
+                onSelectPatient={(p) => setSelectedPatient(p)}
+                onUpdateRisk={handleUpdateRisk}
+              />
             )}
 
-            {/* TAB 3: MALADIES CATALOG & DIAGNOSTIC */}
             {activeTab === 'maladies' && (
-              <div className="dash-section-sm">
-                <div className="dash-toolbar-row">
-                  <div>
-                    <h2 className="text-lg font-bold text-white">Catalogue des Pathologies</h2>
-                    <p className="dash-panel-subtitle">Définition des critères de suivi et seuils d'alerte</p>
-                  </div>
-                  <div className="flex gap-3">
-                    <button
-                      onClick={() => setShowAddMaladieModal(true)}
-                      className="dash-btn-secondary"
-                    >
-                      + Nouvelle Maladie
-                    </button>
-                    <button
-                      onClick={() => setShowAssignMaladieModal(true)}
-                      className="dash-btn-gradient"
-                    >
-                      🩺 Attribuer Diagnostic
-                    </button>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {maladies.map((m) => (
-                    <div key={m.id} className="dash-maladie-card">
-                      <div>
-                        <div className="flex items-center justify-between mb-3">
-                          <span className="dash-maladie-id">
-                            {m.id}
-                          </span>
-                          <span className="text-muted-xs text-id">ID: #{m.id}</span>
-                        </div>
-                        <h3 className="dash-maladie-name">{m.nom}</h3>
-                        <p className="dash-maladie-desc">{m.description}</p>
-                      </div>
-
-                      <div className="dash-maladie-meta">
-                        <div className="dash-meta-row">
-                          <span className="dash-meta-label">Paramètres suivis:</span>
-                          <span className="dash-meta-value">{m.parametresSuivis}</span>
-                        </div>
-                        <div className="dash-meta-row">
-                          <span className="dash-meta-label">Seuil de tolérance:</span>
-                          <span className="dash-meta-value-mono">{m.seuilMin ?? 'N/A'} - {m.seuilMax ?? 'N/A'}</span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <MaladiesTab
+                maladies={maladies}
+                onAddMaladie={() => setShowAddMaladieModal(true)}
+                onAssignMaladie={() => setShowAssignMaladieModal(true)}
+              />
             )}
 
-            {/* TAB 4: CLINICAL SUIVI (MESURES & SYMPTOMES) */}
             {activeTab === 'suivi' && (
-              <div className="dash-section">
-                {/* Action Toolbar */}
-                <div className="dash-toolbar-row">
-                  <h2 className="text-lg font-bold text-white">Relevés de Santé & Symptômes</h2>
-                  <div className="flex gap-3">
-                    <button
-                      onClick={() => openAddMesureModal()}
-                      className="dash-btn-teal"
-                    >
-                      + Saisir une Mesure
-                    </button>
-                    <button
-                      onClick={() => openAddSymptomeModal()}
-                      className="dash-btn-amber"
-                    >
-                      + Signaler Symptôme
-                    </button>
-                  </div>
-                </div>
-
-                <div className="dash-grid-2">
-                  {/* Mesures Table */}
-                  <div className="dash-panel">
-                    <h3 className="text-md font-bold text-white mb-4 flex items-center gap-2">
-                      <span>📈 Historique des Mesures</span>
-                    </h3>
-                    <div className="space-y-3">
-                      {mesures.length === 0 ? (
-                        <p className="text-slate-500 text-sm py-4 text-center">Aucune mesure enregistrée pour vos patients.</p>
-                      ) : (
-                        mesures.map((ms) => (
-                          <div key={ms.id} className="dash-list-item flex items-center justify-between">
-                            <div>
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="badge-type">
-                                  {ms.typeMesure}
-                                </span>
-                                <span className="font-semibold text-teal-400 text-sm">{getPatientDisplayName(ms.patientId)}</span>
-                              </div>
-                              <p className="text-value-lg">
-                                {ms.valeur} <span className="text-value-unit">{ms.unite}</span>
-                              </p>
-                            </div>
-                            <div className="text-right text-muted-xs space-y-1">
-                              <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold ${
-                                ms.source === 'PATIENT' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' :
-                                ms.source === 'MEDECIN' ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30' :
-                                'bg-slate-700 text-slate-300'
-                              }`}>
-                                {ms.source === 'PATIENT' ? '📱 Saisie Patient' : ms.source === 'MEDECIN' ? '🩺 Saisie Médecin' : '📡 ' + ms.source}
-                              </span>
-                              <p>{new Date(ms.dateMesure).toLocaleString('fr-FR')}</p>
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Symptomes Table */}
-                  <div className="dash-panel">
-                    <h3 className="text-md font-bold text-white mb-4 flex items-center gap-2">
-                      <span>🩺 Symptômes Constatés</span>
-                    </h3>
-                    <div className="space-y-3">
-                      {symptomes.length === 0 ? (
-                        <p className="text-slate-500 text-sm py-4 text-center">Aucun symptôme signalé.</p>
-                      ) : (
-                        symptomes.map((sy) => (
-                          <div key={sy.id} className="dash-list-item flex items-center justify-between">
-                            <div>
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className={`badge ${graviteBadgeClass(sy.gravite)}`}>
-                                  Gravité: {sy.gravite}
-                                </span>
-                                <span className="font-semibold text-teal-400 text-sm">{getPatientDisplayName(sy.patientId)}</span>
-                              </div>
-                              <p className="text-sm text-slate-200 mt-2">{sy.description}</p>
-                            </div>
-                            <div className="text-right text-muted-xs">
-                              <p>{new Date(sy.dateSignalement).toLocaleString('fr-FR')}</p>
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <SuiviTab
+                mesures={mesures}
+                symptomes={symptomes}
+                getPatientDisplayName={getPatientDisplayName}
+                onAddMesure={() => openAddMesureModal()}
+                onAddSymptome={() => openAddSymptomeModal()}
+              />
             )}
 
-            {/* TAB 5: ALERTS CENTER */}
             {activeTab === 'alertes' && (
-              <div className="dash-section-sm">
-                <div className="dash-toolbar-row flex-col items-start gap-1">
-                  <h2 className="text-lg font-bold text-white">Centre de Traitement des Alertes Médicales</h2>
-                  <p className="dash-panel-subtitle">Consultez l'historique complet des alertes générées et acquittez celles déjà traitées</p>
-                </div>
-
-                <div className="space-y-4">
-                  {alertes.length === 0 ? (
-                    <p className="text-slate-500 text-sm py-6 text-center">Aucune alerte médicale pour le moment.</p>
-                  ) : (
-                    alertes.map((al) => (
-                      <div
-                        key={al.id}
-                        className={`dash-alert-card ${
-                          al.traitee
-                            ? 'dash-alert-done'
-                            : 'dash-alert-active'
-                        }`}
-                      >
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-3">
-                            <span className={`badge ${riskBadgeClass(al.niveauRisque)}`}>
-                              {al.niveauRisque}
-                            </span>
-                            <span className="badge-source">
-                              Source: {al.source}
-                            </span>
-                            <span className="font-semibold text-teal-400 text-sm">{getPatientDisplayName(al.patientId)}</span>
-                          </div>
-                          <p className="text-base font-semibold text-white">{al.description}</p>
-                          <p className="text-muted-xs">Date: {new Date(al.dateCreation).toLocaleString('fr-FR')}</p>
-                        </div>
-
-                        <div>
-                          {al.traitee ? (
-                            <span className="badge-treated">
-                              ✓ Traitée
-                            </span>
-                          ) : (
-                            <button
-                              onClick={() => handleMarkAlerteTraitee(al.id)}
-                              className="dash-btn-gradient text-xs"
-                            >
-                              Marquer comme Traitée
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
+              <AlertesTab
+                alertes={alertes}
+                getPatientDisplayName={getPatientDisplayName}
+                onMarkAlerteTraitee={handleMarkAlerteTraitee}
+              />
             )}
 
-            {/* TAB 6: DOCTOR PROFILE */}
             {activeTab === 'profile' && (
-              <div className="dash-section-sm">
-
-                {/* ── Hero Header Card ── */}
-                <div className="dash-profile-hero">
-                  {/* Background blobs */}
-                  <div className="absolute -top-24 -right-24 w-72 h-72 bg-teal-500/10 rounded-full blur-3xl pointer-events-none" />
-                  <div className="absolute -bottom-16 -left-16 w-56 h-56 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
-
-                  <div className="relative z-10 flex flex-col sm:flex-row items-center sm:items-start gap-6">
-                    {/* Avatar / Photo Upload Zone */}
-                    <div className="flex flex-col items-center gap-3 flex-shrink-0">
-                      <div
-                        className={`relative w-28 h-28 rounded-2xl overflow-hidden border-2 transition-all cursor-pointer group ${
-                          isDragOver
-                            ? 'border-teal-400 scale-105 shadow-xl shadow-teal-500/30'
-                            : 'border-teal-500/40 hover:border-teal-400 hover:shadow-lg hover:shadow-teal-500/20'
-                        }`}
-                        onClick={() => fileInputRef.current?.click()}
-                        onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
-                        onDragLeave={() => setIsDragOver(false)}
-                        onDrop={handleDrop}
-                      >
-                        {profilePicture ? (
-                          <img
-                            src={profilePicture}
-                            alt="Photo de profil"
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-full h-full bg-gradient-to-br from-teal-500 to-cyan-400 flex items-center justify-center">
-                            <span className="text-3xl font-extrabold text-white">
-                              {user?.firstName?.[0] || 'D'}{user?.lastName?.[0] || 'R'}
-                            </span>
-                          </div>
-                        )}
-                        {/* Hover overlay */}
-                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1">
-                          <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                          </svg>
-                          <span className="text-white text-xs font-semibold">Changer</span>
-                        </div>
-                      </div>
-
-                      {/* Upload / Remove buttons */}
-                      <input
-                        ref={fileInputRef}
-                        id="profile-picture-input"
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={handleProfilePictureChange}
-                      />
-                      <div className="flex gap-2">
-                        <button
-                          id="upload-photo-btn"
-                          type="button"
-                          onClick={() => fileInputRef.current?.click()}
-                          className="text-xs bg-teal-500/15 hover:bg-teal-500/30 text-teal-400 border border-teal-500/30 px-3 py-1.5 rounded-lg font-semibold transition-all"
-                        >
-                          📷 Importer
-                        </button>
-                        {profilePicture && (
-                          <button
-                            id="remove-photo-btn"
-                            type="button"
-                            onClick={handleRemovePicture}
-                            className="text-xs bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 px-3 py-1.5 rounded-lg font-semibold transition-all"
-                          >
-                            ✕
-                          </button>
-                        )}
-                      </div>
-                      <p className="text-xs text-slate-500 text-center max-w-[120px]">JPG, PNG, WebP (glissez-déposez)</p>
-                    </div>
-
-                    {/* Doctor info */}
-                    <div className="flex-1 text-center sm:text-left">
-                      <div className="flex flex-wrap items-center gap-2 justify-center sm:justify-start mb-1">
-                        <span className="bg-teal-500/15 text-teal-400 text-xs font-bold px-2.5 py-0.5 rounded-full border border-teal-500/30">
-                          MÉDECIN
-                        </span>
-                        <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${
-                          user?.active
-                            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-                            : 'bg-slate-700 text-slate-400 border-slate-600'
-                        }`}>
-                          {user?.active ? '● Actif' : '● Inactif'}
-                        </span>
-                      </div>
-                      <h1 className="text-3xl font-extrabold text-white mt-2">
-                        Dr. {user?.firstName} {user?.lastName}
-                      </h1>
-                      <p className="text-slate-400 text-sm mt-1">@{user?.username}</p>
-                      <p className="text-slate-400 text-sm">{user?.email}</p>
-                      {user?.phone && (
-                        <p className="text-slate-400 text-sm mt-0.5">📞 {user.phone}</p>
-                      )}
-
-                      {/* Activity Stats Row */}
-                      <div className="flex flex-wrap gap-4 mt-5">
-                        <div className="dash-field-readonly text-center min-w-[80px]">
-                          <p className="text-2xl font-bold text-white">{patients.length}</p>
-                          <p className="text-xs text-slate-400">Patients</p>
-                        </div>
-                        <div className="dash-field-readonly text-center min-w-[80px]">
-                          <p className="text-2xl font-bold text-amber-400">{alertes.filter(a => !a.traitee).length}</p>
-                          <p className="text-xs text-slate-400">Alertes actives</p>
-                        </div>
-                        <div className="dash-field-readonly text-center min-w-[80px]">
-                          <p className="text-2xl font-bold text-teal-400">{maladies.length}</p>
-                          <p className="text-xs text-slate-400">Pathologies</p>
-                        </div>
-                        <div className="dash-field-readonly text-center min-w-[80px]">
-                          <p className="text-2xl font-bold text-cyan-400">{mesures.length}</p>
-                          <p className="text-xs text-slate-400">Mesures</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* ── 2-column grid: Personal Info + Account Info ── */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-                  {/* Personal Info Card */}
-                  <div className="dash-panel">
-                    <div className="flex items-center justify-between mb-5">
-                      <div>
-                        <h2 className="text-lg font-bold text-white">Informations Personnelles</h2>
-                        <p className="text-xs text-slate-400 mt-0.5">Modifiez vos données de contact</p>
-                      </div>
-                      {!profileEditMode ? (
-                        <button
-                          id="edit-profile-btn"
-                          onClick={() => {
-                            setProfileForm({ firstName: user?.firstName || '', lastName: user?.lastName || '', phone: user?.phone || '' });
-                            setProfileEditMode(true);
-                            setProfileSuccess('');
-                          }}
-                          className="flex items-center gap-1.5 text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-2 rounded-xl font-semibold transition-all"
-                        >
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                          </svg>
-                          Modifier
-                        </button>
-                      ) : (
-                        <div className="flex gap-2">
-                          <button
-                            id="cancel-profile-btn"
-                            type="button"
-                            onClick={handleCancelProfileEdit}
-                            className="text-xs text-slate-400 hover:text-white px-3 py-2 rounded-xl transition-all"
-                          >
-                            Annuler
-                          </button>
-                          <button
-                            id="save-profile-btn"
-                            type="button"
-                            onClick={handleSaveProfile}
-                            disabled={profileSaving}
-                            className="text-xs bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-white font-bold px-4 py-2 rounded-xl shadow-lg shadow-teal-500/25 transition-all disabled:opacity-50"
-                          >
-                            {profileSaving ? (
-                              <span className="flex items-center gap-1.5">
-                                <span className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin inline-block" />
-                                Sauvegarde...
-                              </span>
-                            ) : '✓ Enregistrer'}
-                          </button>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Success/Error messages */}
-                    {profileSuccess && (
-                      <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-sm px-4 py-2.5 rounded-xl mb-4 font-medium">
-                        <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
-                        {profileSuccess}
-                      </div>
-                    )}
-                    {profileError && (
-                      <div className="flex items-center gap-2 bg-rose-500/10 border border-rose-500/30 text-rose-400 text-sm px-4 py-2.5 rounded-xl mb-4">
-                        {profileError}
-                      </div>
-                    )}
-
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="dash-label dash-label-spaced">Prénom</label>
-                          {profileEditMode ? (
-                            <input
-                              id="profile-firstName"
-                              type="text"
-                              value={profileForm.firstName}
-                              onChange={(e) => setProfileForm({ ...profileForm, firstName: e.target.value })}
-                              className="dash-input dash-input-edit"
-                            />
-                          ) : (
-                            <div className="dash-field-readonly">
-                              {user?.firstName || '—'}
-                            </div>
-                          )}
-                        </div>
-                        <div>
-                          <label className="dash-label dash-label-spaced">Nom</label>
-                          {profileEditMode ? (
-                            <input
-                              id="profile-lastName"
-                              type="text"
-                              value={profileForm.lastName}
-                              onChange={(e) => setProfileForm({ ...profileForm, lastName: e.target.value })}
-                              className="dash-input dash-input-edit"
-                            />
-                          ) : (
-                            <div className="dash-field-readonly">
-                              {user?.lastName || '—'}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="dash-label dash-label-spaced">Téléphone</label>
-                        {profileEditMode ? (
-                          <input
-                            id="profile-phone"
-                            type="tel"
-                            placeholder="ex: +216 XX XXX XXX"
-                            value={profileForm.phone}
-                            onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
-                            className="dash-input dash-input-edit"
-                          />
-                        ) : (
-                          <div className="dash-field-readonly">
-                            {user?.phone || <span className="text-slate-500 italic">Non renseigné</span>}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Account Info Card */}
-                  <div className="dash-panel">
-                    <h2 className="text-lg font-bold text-white mb-1">Informations du Compte</h2>
-                    <p className="text-xs text-slate-400 mb-5">Données d'authentification (lecture seule)</p>
-
-                    <div className="space-y-4">
-                      <div>
-                        <label className="dash-label dash-label-spaced">Nom d'utilisateur</label>
-                        <div className="dash-field-readonly flex items-center justify-between">
-                          <span className="text-sm text-white font-mono">@{user?.username}</span>
-                          <span className="text-xs text-slate-500 italic">Non modifiable</span>
-                        </div>
-                      </div>
-                      <div>
-                        <label className="dash-label dash-label-spaced">Adresse Email</label>
-                        <div className="dash-field-readonly flex items-center justify-between">
-                          <span className="text-sm text-white">{user?.email}</span>
-                          <span className="text-xs text-slate-500 italic">Non modifiable</span>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="dash-label dash-label-spaced">Rôle</label>
-                          <div className="dash-field-readonly">
-                            <span className="badge-type">
-                              {user?.role || 'MEDECIN'}
-                            </span>
-                          </div>
-                        </div>
-                        <div>
-                          <label className="dash-label dash-label-spaced">Statut</label>
-                          <div className="dash-field-readonly">
-                            <span className={`badge ${
-                              user?.active
-                                ? 'badge-status-active'
-                                : 'badge-status-inactive'
-                            }`}>
-                              {user?.active ? '● Compte Actif' : '● Inactif'}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                      <div>
-                        <label className="dash-label dash-label-spaced">ID Médecin</label>
-                        <div className="dash-field-readonly">
-                          <span className="text-id">#{user?.id}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* ── Change Password Card ── */}
-                <div className="dash-panel">
-                  <div className="flex items-start gap-4 mb-6">
-                    <div className="p-3 bg-amber-500/10 rounded-xl">
-                      <svg className="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                      </svg>
-                    </div>
-                    <div>
-                      <h2 className="text-lg font-bold text-white">Sécurité & Mot de Passe</h2>
-                      <p className="text-xs text-slate-400 mt-0.5">Modifiez votre mot de passe de connexion</p>
-                    </div>
-                  </div>
-
-                  {passwordSuccess && (
-                    <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-sm px-4 py-2.5 rounded-xl mb-4 font-medium">
-                      <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
-                      {passwordSuccess}
-                    </div>
-                  )}
-                  {passwordError && (
-                    <div className="flex items-center gap-2 bg-rose-500/10 border border-rose-500/30 text-rose-400 text-sm px-4 py-2.5 rounded-xl mb-4">
-                      <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
-                      {passwordError}
-                    </div>
-                  )}
-
-                  <form id="change-password-form" onSubmit={handleChangePassword} className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {/* Current password */}
-                    <div>
-                      <label className="dash-label dash-label-spaced">Mot de passe actuel</label>
-                      <div className="relative">
-                        <input
-                          id="current-password"
-                          type={showCurrentPwd ? 'text' : 'password'}
-                          placeholder="••••••••"
-                          value={passwordForm.current}
-                          onChange={(e) => setPasswordForm({ ...passwordForm, current: e.target.value })}
-                          className="dash-input pr-10"
-                          required
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowCurrentPwd(!showCurrentPwd)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
-                        >
-                          {showCurrentPwd
-                            ? <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
-                            : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                          }
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* New password */}
-                    <div>
-                      <label className="dash-label dash-label-spaced">Nouveau mot de passe</label>
-                      <div className="relative">
-                        <input
-                          id="new-password"
-                          type={showNewPwd ? 'text' : 'password'}
-                          placeholder="••••••••"
-                          value={passwordForm.newPwd}
-                          onChange={(e) => setPasswordForm({ ...passwordForm, newPwd: e.target.value })}
-                          className="dash-input pr-10"
-                          required
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowNewPwd(!showNewPwd)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
-                        >
-                          {showNewPwd
-                            ? <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
-                            : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                          }
-                        </button>
-                      </div>
-                      {/* Strength bar */}
-                      {passwordForm.newPwd.length > 0 && (
-                        <div className="mt-2">
-                          <div className="flex gap-1 mb-1">
-                            {[1,2,3,4].map(i => (
-                              <div
-                                key={i}
-                                className={`h-1 flex-1 rounded-full transition-all duration-300 ${
-                                  i <= pwdStrength
-                                    ? pwdStrength <= 1
-                                      ? 'bg-rose-500'
-                                      : pwdStrength === 2
-                                      ? 'bg-amber-500'
-                                      : pwdStrength === 3
-                                      ? 'bg-teal-500'
-                                      : 'bg-emerald-500'
-                                    : 'bg-slate-800'
-                                }`}
-                              />
-                            ))}
-                          </div>
-                          <p className={`text-xs font-semibold ${
-                            pwdStrength <= 1 ? 'text-rose-400' : pwdStrength === 2 ? 'text-amber-400' : pwdStrength === 3 ? 'text-teal-400' : 'text-emerald-400'
-                          }`}>
-                            {pwdStrengthLabel}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Confirm password */}
-                    <div>
-                      <label className="dash-label dash-label-spaced">Confirmer le mot de passe</label>
-                      <div className="relative">
-                        <input
-                          id="confirm-password"
-                          type={showConfirmPwd ? 'text' : 'password'}
-                          placeholder="••••••••"
-                          value={passwordForm.confirm}
-                          onChange={(e) => setPasswordForm({ ...passwordForm, confirm: e.target.value })}
-                          className={`w-full bg-slate-950 border rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:ring-1 pr-10 transition-all ${
-                            passwordForm.confirm.length > 0
-                              ? passwordForm.confirm === passwordForm.newPwd
-                                ? 'border-emerald-500 focus:border-emerald-400 focus:ring-emerald-500/20'
-                                : 'border-rose-500 focus:border-rose-400 focus:ring-rose-500/20'
-                              : 'border-slate-800 focus:border-teal-500 focus:ring-teal-500/20'
-                          }`}
-                          required
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowConfirmPwd(!showConfirmPwd)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
-                        >
-                          {showConfirmPwd
-                            ? <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
-                            : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                          }
-                        </button>
-                        {passwordForm.confirm.length > 0 && passwordForm.confirm === passwordForm.newPwd && (
-                          <svg className="absolute right-9 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-400" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                          </svg>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Submit row */}
-                    <div className="md:col-span-3 flex items-center justify-between pt-2 border-t border-slate-800 mt-2">
-                      <ul className="text-xs text-slate-500 space-y-0.5">
-                        <li className={`flex items-center gap-1.5 ${passwordForm.newPwd.length >= 8 ? 'text-emerald-400' : ''}`}>
-                          <span>{passwordForm.newPwd.length >= 8 ? '✓' : '○'}</span> Minimum 8 caractères
-                        </li>
-                        <li className={`flex items-center gap-1.5 ${/[A-Z]/.test(passwordForm.newPwd) ? 'text-emerald-400' : ''}`}>
-                          <span>{/[A-Z]/.test(passwordForm.newPwd) ? '✓' : '○'}</span> Une majuscule
-                        </li>
-                        <li className={`flex items-center gap-1.5 ${/[0-9]/.test(passwordForm.newPwd) ? 'text-emerald-400' : ''}`}>
-                          <span>{/[0-9]/.test(passwordForm.newPwd) ? '✓' : '○'}</span> Un chiffre
-                        </li>
-                      </ul>
-                      <button
-                        id="submit-change-password"
-                        type="submit"
-                        disabled={passwordSaving}
-                        className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white font-bold text-sm px-6 py-2.5 rounded-xl shadow-lg shadow-amber-500/20 transition-all disabled:opacity-50 flex items-center gap-2"
-                      >
-                        {passwordSaving ? (
-                          <>
-                            <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                            Changement...
-                          </>
-                        ) : (
-                          <>
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                            </svg>
-                            Changer le mot de passe
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </form>
-                </div>
-
-              </div>
+              <ProfileTab
+                user={user}
+                medecinId={medecinId}
+                profileForm={profileForm}
+                setProfileForm={setProfileForm}
+                profileEditMode={profileEditMode}
+                setProfileEditMode={setProfileEditMode}
+                profileSaving={profileSaving}
+                profileSuccess={profileSuccess}
+                profileError={profileError}
+                handleSaveProfile={handleSaveProfile}
+                fileInputRef={fileInputRef}
+                avatarUploading={avatarUploading}
+                handleAvatarChange={handleAvatarChange}
+                handleRemoveAvatar={handleRemoveAvatar}
+                passwordForm={passwordForm}
+                setPasswordForm={setPasswordForm}
+                passwordSaving={passwordSaving}
+                passwordSuccess={passwordSuccess}
+                passwordError={passwordError}
+                handleChangePassword={handleChangePassword}
+                getPasswordStrength={getPasswordStrength}
+                getPasswordStrengthLabel={getPasswordStrengthLabel}
+              />
             )}
           </>
         )}
       </main>
 
-      {/* MODAL 1: ADD PATIENT */}
-      {showAddPatientModal && (
-        <div className="modal-overlay">
-          <div className="modal-box">
-            <h3 className="text-xl font-bold text-white">Nouveau Patient</h3>
-            <form onSubmit={handleAddPatient} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="dash-label">Prénom</label>
-                  <input
-                    type="text"
-                    placeholder="ex: Mohamed"
-                    value={newPatientForm.prenom}
-                    onChange={(e) => setNewPatientForm({ ...newPatientForm, prenom: e.target.value })}
-                    className="dash-input"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="dash-label">Nom</label>
-                  <input
-                    type="text"
-                    placeholder="ex: Ben Ali"
-                    value={newPatientForm.nom}
-                    onChange={(e) => setNewPatientForm({ ...newPatientForm, nom: e.target.value })}
-                    className="dash-input"
-                    required
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="dash-label">Nom d'utilisateur (Login)</label>
-                  <input
-                    type="text"
-                    placeholder="ex: mohamed.ali"
-                    value={newPatientForm.username}
-                    onChange={(e) => setNewPatientForm({ ...newPatientForm, username: e.target.value })}
-                    className="dash-input"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="dash-label">Date de Naissance</label>
-                  <input
-                    type="date"
-                    value={newPatientForm.dateNaissance}
-                    onChange={(e) => setNewPatientForm({ ...newPatientForm, dateNaissance: e.target.value })}
-                    className="dash-input"
-                    required
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="dash-label">Adresse Email</label>
-                  <input
-                    type="email"
-                    placeholder="ex: patient@email.com"
-                    value={newPatientForm.email}
-                    onChange={(e) => setNewPatientForm({ ...newPatientForm, email: e.target.value })}
-                    className="dash-input"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="dash-label">Mot de passe temporaire</label>
-                  <input
-                    type="password"
-                    placeholder="••••••••"
-                    value={newPatientForm.password}
-                    onChange={(e) => setNewPatientForm({ ...newPatientForm, password: e.target.value })}
-                    className="dash-input"
-                    required
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="dash-label">Sexe</label>
-                  <select
-                    value={newPatientForm.sexe}
-                    onChange={(e) => setNewPatientForm({ ...newPatientForm, sexe: e.target.value as Sexe })}
-                    className="dash-select"
-                  >
-                    <option value="HOMME">HOMME</option>
-                    <option value="FEMME">FEMME</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="dash-label">Risque Initial</label>
-                  <select
-                    value={newPatientForm.niveauRisque}
-                    onChange={(e) => setNewPatientForm({ ...newPatientForm, niveauRisque: e.target.value as NiveauRisque })}
-                    className="dash-select"
-                  >
-                    <option value="FAIBLE">FAIBLE</option>
-                    <option value="MOYEN">MOYEN</option>
-                    <option value="ELEVE">ÉLEVÉ</option>
-                    <option value="CRITIQUE">CRITIQUE</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="modal-actions">
-                <button
-                  type="button"
-                  onClick={() => setShowAddPatientModal(false)}
-                  className="dash-btn-cancel"
-                >
-                  Annuler
-                </button>
-                <button
-                  type="submit"
-                  className="dash-btn-teal"
-                >
-                  Enregistrer
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL 2: ADD MALADIE */}
-      {showAddMaladieModal && (
-        <div className="modal-overlay">
-          <div className="modal-box">
-            <h3 className="text-xl font-bold text-white">Ajouter une Pathologie</h3>
-            <form onSubmit={handleAddMaladie} className="space-y-4">
-              <div>
-                <label className="dash-label">Nom de la maladie</label>
-                <input
-                  type="text"
-                  placeholder="ex: Hypertension"
-                  value={newMaladieForm.nom}
-                  onChange={(e) => setNewMaladieForm({ ...newMaladieForm, nom: e.target.value })}
-                  className="dash-input"
-                  required
-                />
-              </div>
-              <div>
-                <label className="dash-label">Description</label>
-                <textarea
-                  placeholder="Description médicale..."
-                  value={newMaladieForm.description}
-                  onChange={(e) => setNewMaladieForm({ ...newMaladieForm, description: e.target.value })}
-                  className="dash-input"
-                  rows={3}
-                  required
-                />
-              </div>
-              <div>
-                <label className="dash-label">Paramètres Suivis</label>
-                <input
-                  type="text"
-                  placeholder="ex: Tension, Glycémie"
-                  value={newMaladieForm.parametresSuivis}
-                  onChange={(e) => setNewMaladieForm({ ...newMaladieForm, parametresSuivis: e.target.value })}
-                  className="dash-input"
-                  required
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="dash-label">Seuil Min</label>
-                  <input
-                    type="number"
-                    value={newMaladieForm.seuilMin}
-                    onChange={(e) => setNewMaladieForm({ ...newMaladieForm, seuilMin: Number(e.target.value) })}
-                    className="dash-select"
-                  />
-                </div>
-                <div>
-                  <label className="dash-label">Seuil Max</label>
-                  <input
-                    type="number"
-                    value={newMaladieForm.seuilMax}
-                    onChange={(e) => setNewMaladieForm({ ...newMaladieForm, seuilMax: Number(e.target.value) })}
-                    className="dash-select"
-                  />
-                </div>
-              </div>
-
-              <div className="modal-actions">
-                <button
-                  type="button"
-                  onClick={() => setShowAddMaladieModal(false)}
-                  className="dash-btn-cancel"
-                >
-                  Annuler
-                </button>
-                <button
-                  type="submit"
-                  className="dash-btn-teal"
-                >
-                  Créer Maladie
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL 3: ASSIGN MALADIE TO PATIENT */}
-      {showAssignMaladieModal && (
-        <div className="modal-overlay">
-          <div className="modal-box">
-            <h3 className="text-xl font-bold text-white">Affecter une Pathologie</h3>
-            <form onSubmit={handleAssignMaladie} className="space-y-4">
-              <div>
-                <label className="dash-label">Sélectionner Patient</label>
-                <select
-                  value={assignMaladieForm.patientId}
-                  onChange={(e) => setAssignMaladieForm({ ...assignMaladieForm, patientId: Number(e.target.value) })}
-                  className="dash-select"
-                >
-                  {patients.length === 0 ? (
-                    <option value="">Aucun patient sous votre suivi</option>
-                  ) : (
-                    patients.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.nom ? `${p.prenom} ${p.nom}` : `Patient #${p.id}`}
-                      </option>
-                    ))
-                  )}
-                </select>
-              </div>
-              <div>
-                <label className="dash-label">Sélectionner Pathologie</label>
-                <select
-                  value={assignMaladieForm.maladieId}
-                  onChange={(e) => setAssignMaladieForm({ ...assignMaladieForm, maladieId: Number(e.target.value) })}
-                  className="dash-select"
-                >
-                  {maladies.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.nom}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="dash-label">Date Diagnostic</label>
-                <input
-                  type="date"
-                  value={assignMaladieForm.dateDiagnostic}
-                  onChange={(e) => setAssignMaladieForm({ ...assignMaladieForm, dateDiagnostic: e.target.value })}
-                  className="dash-input"
-                  required
-                />
-              </div>
-
-              <div className="modal-actions">
-                <button
-                  type="button"
-                  onClick={() => setShowAssignMaladieModal(false)}
-                  className="dash-btn-cancel"
-                >
-                  Annuler
-                </button>
-                <button
-                  type="submit"
-                  className="bg-cyan-500 hover:bg-cyan-400 text-white font-bold px-5 py-2 rounded-xl text-sm shadow-lg shadow-cyan-500/20"
-                >
-                  Affecter
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL 4: ADD MESURE */}
-      {showAddMesureModal && (
-        <div className="modal-overlay">
-          <div className="modal-box">
-            <h3 className="text-xl font-bold text-white">Saisir une Mesure</h3>
-            <form onSubmit={handleAddMesure} className="space-y-4">
-              <div>
-                <label className="dash-label">Patient</label>
-                <select
-                  value={newMesureForm.patientId}
-                  onChange={(e) => setNewMesureForm({ ...newMesureForm, patientId: Number(e.target.value) })}
-                  className="dash-select"
-                >
-                  {patients.length === 0 ? (
-                    <option value="">Aucun patient sous votre suivi</option>
-                  ) : (
-                    patients.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.nom ? `${p.prenom} ${p.nom}` : `Patient #${p.id}`}
-                      </option>
-                    ))
-                  )}
-                </select>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="dash-label">Type de mesure</label>
-                  <select
-                    value={newMesureForm.typeMesure}
-                    onChange={(e) => handleMeasureTypeChange(e.target.value as TypeMesure)}
-                    className="dash-select"
-                  >
-                    <option value="TENSION">Tension</option>
-                    <option value="GLYCEMIE">Glycémie</option>
-                    <option value="FREQUENCE_CARDIAQUE">Fréquence Cardiaque</option>
-                    <option value="TEMPERATURE">Température</option>
-                    <option value="POIDS">Poids</option>
-                    <option value="SPO2">SpO2</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="dash-label">Source</label>
-                  <select
-                    value={newMesureForm.source}
-                    onChange={(e) => setNewMesureForm({ ...newMesureForm, source: e.target.value as Source })}
-                    className="dash-select"
-                  >
-                    <option value="MEDECIN">MEDECIN</option>
-                    <option value="PATIENT">PATIENT</option>
-                    <option value="CAPTEUR">CAPTEUR</option>
-                  </select>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="dash-label">Valeur</label>
-                  <input
-                    type="number"
-                    step="any"
-                    value={newMesureForm.valeur}
-                    onChange={(e) => setNewMesureForm({ ...newMesureForm, valeur: Number(e.target.value) })}
-                    className="dash-input"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="dash-label">Unité</label>
-                  <input
-                    type="text"
-                    value={newMesureForm.unite}
-                    onChange={(e) => setNewMesureForm({ ...newMesureForm, unite: e.target.value })}
-                    className="dash-input"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="modal-actions">
-                <button
-                  type="button"
-                  onClick={() => setShowAddMesureModal(false)}
-                  className="dash-btn-cancel"
-                >
-                  Annuler
-                </button>
-                <button
-                  type="submit"
-                  className="dash-btn-teal"
-                >
-                  Enregistrer Mesure
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL 5: ADD SYMPTOME */}
-      {showAddSymptomeModal && (
-        <div className="modal-overlay">
-          <div className="modal-box">
-            <h3 className="text-xl font-bold text-white">Signaler un Symptôme</h3>
-            <form onSubmit={handleAddSymptome} className="space-y-4">
-              <div>
-                <label className="dash-label">Patient</label>
-                <select
-                  value={newSymptomeForm.patientId}
-                  onChange={(e) => setNewSymptomeForm({ ...newSymptomeForm, patientId: Number(e.target.value) })}
-                  className="dash-select"
-                >
-                  {patients.length === 0 ? (
-                    <option value="">Aucun patient sous votre suivi</option>
-                  ) : (
-                    patients.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.nom ? `${p.prenom} ${p.nom}` : `Patient #${p.id}`}
-                      </option>
-                    ))
-                  )}
-                </select>
-              </div>
-              <div>
-                <label className="dash-label">Description</label>
-                <textarea
-                  placeholder="Description des symptômes ressentis..."
-                  value={newSymptomeForm.description}
-                  onChange={(e) => setNewSymptomeForm({ ...newSymptomeForm, description: e.target.value })}
-                  className="dash-input"
-                  rows={3}
-                  required
-                />
-              </div>
-              <div>
-                <label className="dash-label">Gravité</label>
-                <select
-                  value={newSymptomeForm.gravite}
-                  onChange={(e) => setNewSymptomeForm({ ...newSymptomeForm, gravite: e.target.value as Gravite })}
-                  className="dash-select"
-                >
-                  <option value="FAIBLE">FAIBLE</option>
-                  <option value="MODERE">MODÉRÉ</option>
-                  <option value="GRAVE">GRAVE</option>
-                </select>
-              </div>
-
-              <div className="modal-actions">
-                <button
-                  type="button"
-                  onClick={() => setShowAddSymptomeModal(false)}
-                  className="dash-btn-cancel"
-                >
-                  Annuler
-                </button>
-                <button
-                  type="submit"
-                  className="bg-amber-500 hover:bg-amber-400 text-white font-bold px-5 py-2 rounded-xl text-sm shadow-lg shadow-amber-500/20"
-                >
-                  Signaler
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL 6: PATIENT PROFILE VIEW */}
-      {selectedPatient && (
-        <div className="modal-overlay">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-lg w-full p-6 space-y-6">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-              <div>
-                <h3 className="text-xl font-bold text-white">
-                  Profil Patient #{selectedPatient.id}
-                </h3>
-                <p className="text-xs text-slate-400">Dossier médical électronique</p>
-              </div>
-              <button
-                onClick={() => { setSelectedPatient(null); setPredictionResult(null); }}
-                className="text-slate-400 hover:text-white text-lg font-bold"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                <span className="text-xs text-slate-500 block">Nom & Prénom</span>
-                <span className="font-semibold text-white">{selectedPatient.nom ? `${selectedPatient.prenom} ${selectedPatient.nom}` : `Patient #${selectedPatient.id}`}</span>
-              </div>
-              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                <span className="text-xs text-slate-500 block">User ID</span>
-                <span className="font-semibold text-white">#{selectedPatient.userId}</span>
-              </div>
-              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                <span className="text-xs text-slate-500 block">Date de Naissance</span>
-                <span className="font-semibold text-white">{selectedPatient.dateNaissance}</span>
-              </div>
-              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                <span className="text-xs text-slate-500 block">Sexe</span>
-                <span className="font-semibold text-white">{selectedPatient.sexe}</span>
-              </div>
-              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 col-span-2">
-                <span className="text-xs text-slate-500 block">Niveau de Risque Actuel</span>
-                <span className={`text-xs px-3 py-1 rounded-full border font-bold inline-block mt-1 ${riskBadgeClass(selectedPatient.niveauRisque)}`}>
-                  {selectedPatient.niveauRisque}
-                </span>
-              </div>
-            </div>
-
-            {/* ML Predict risk section */}
-            <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="text-sm font-bold text-teal-400">Score de Risque ML (Random Forest)</h4>
-                  <p className="text-xs text-slate-500">Calcul basé sur les mesures des 14j et les symptômes</p>
-                </div>
-                <button
-                  type="button"
-                  disabled={predictingRisk}
-                  onClick={() => handlePredictRisk(selectedPatient.id)}
-                  className="bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-lg shadow-teal-500/20 disabled:opacity-50 transition-all"
-                >
-                  {predictingRisk ? (
-                    <span className="flex items-center gap-1">
-                      <span className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin inline-block" />
-                      Calcul...
-                    </span>
-                  ) : "⚡ Prédire le Risque"}
-                </button>
-              </div>
-
-              {predictionResult && (
-                <div className="pt-2 border-t border-slate-800/80 space-y-3">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-slate-400 font-semibold">Gravité prédite :</span>
-                    <span className={`text-xs px-3 py-1 rounded-full border font-bold ${
-                      predictionResult.gravite === 'GRAVE' ? 'bg-rose-500/10 text-rose-400 border-rose-500/30' :
-                      predictionResult.gravite === 'MODERE' ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' :
-                      'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-                    }`}>
-                      {predictionResult.gravite}
-                    </span>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <p className="text-xs font-semibold text-slate-400">Probabilités par classe :</p>
-                    {Object.entries(predictionResult.probabilities).map(([key, val]) => (
-                      <div key={key} className="flex items-center justify-between text-xs">
-                        <span className="text-slate-500 font-mono">{key} :</span>
-                        <div className="flex items-center gap-3 w-2/3">
-                          <div className="w-full bg-slate-900 rounded-full h-1.5 overflow-hidden border border-slate-800">
-                            <div
-                              className={`h-full rounded-full ${
-                                key === 'GRAVE' ? 'bg-rose-500' :
-                                key === 'MODERE' ? 'bg-amber-500' :
-                                'bg-emerald-500'
-                              }`}
-                              style={{ width: `${val * 100}%` }}
-                            />
-                          </div>
-                          <span className="text-slate-300 font-mono w-10 text-right">
-                            {Math.round(val * 100)}%
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="flex justify-end border-t border-slate-800 pt-4">
-              <button
-                onClick={() => { setSelectedPatient(null); setPredictionResult(null); }}
-                className="bg-slate-800 hover:bg-slate-700 text-white font-semibold px-5 py-2 rounded-xl text-sm"
-              >
-                Fermer
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Modals Component */}
+      <DashboardModals
+        showAddPatientModal={showAddPatientModal}
+        setShowAddPatientModal={setShowAddPatientModal}
+        newPatientForm={newPatientForm}
+        setNewPatientForm={setNewPatientForm}
+        handleAddPatient={handleAddPatient}
+        showAddMaladieModal={showAddMaladieModal}
+        setShowAddMaladieModal={setShowAddMaladieModal}
+        newMaladieForm={newMaladieForm}
+        setNewMaladieForm={setNewMaladieForm}
+        handleAddMaladie={handleAddMaladie}
+        showAssignMaladieModal={showAssignMaladieModal}
+        setShowAssignMaladieModal={setShowAssignMaladieModal}
+        assignMaladieForm={assignMaladieForm}
+        setAssignMaladieForm={setAssignMaladieForm}
+        handleAssignMaladie={handleAssignMaladie}
+        showAddMesureModal={showAddMesureModal}
+        setShowAddMesureModal={setShowAddMesureModal}
+        newMesureForm={newMesureForm}
+        setNewMesureForm={setNewMesureForm}
+        handleMeasureTypeChange={handleMeasureTypeChange}
+        handleAddMesure={handleAddMesure}
+        showAddSymptomeModal={showAddSymptomeModal}
+        setShowAddSymptomeModal={setShowAddSymptomeModal}
+        newSymptomeForm={newSymptomeForm}
+        setNewSymptomeForm={setNewSymptomeForm}
+        handleAddSymptome={handleAddSymptome}
+        selectedPatient={selectedPatient}
+        setSelectedPatient={setSelectedPatient}
+        predictingRisk={predictingRisk}
+        predictionResult={predictionResult}
+        handlePredictRisk={handlePredictRisk}
+        patients={patients}
+        maladies={maladies}
+      />
     </div>
   );
 };

@@ -8,14 +8,6 @@ interface AuthLayoutProps {
   showBrand?: boolean;
 }
 
-const PARTICLES = Array.from({ length: 18 }, (_, i) => ({
-  id: i,
-  left: `${(i * 17 + 7) % 100}%`,
-  delay: `${(i * 0.7) % 12}s`,
-  duration: `${14 + (i % 5) * 2}s`,
-  drift: `${-40 + (i % 9) * 10}px`,
-}));
-
 const AuthLayout: React.FC<AuthLayoutProps> = ({
   children,
   icon,
@@ -25,26 +17,8 @@ const AuthLayout: React.FC<AuthLayoutProps> = ({
 }) => {
   return (
     <div className="auth-page">
-      <div className="auth-grid" aria-hidden="true" />
       <div className="auth-blob auth-blob-1" aria-hidden="true" />
       <div className="auth-blob auth-blob-2" aria-hidden="true" />
-      <div className="auth-blob auth-blob-3" aria-hidden="true" />
-
-      <div className="auth-particles" aria-hidden="true">
-        {PARTICLES.map((p) => (
-          <span
-            key={p.id}
-            className="auth-particle"
-            style={{
-              left: p.left,
-              bottom: '-4px',
-              animationDelay: p.delay,
-              animationDuration: p.duration,
-              ['--drift' as string]: p.drift,
-            }}
-          />
-        ))}
-      </div>
 
       <div className="auth-container auth-animate">
         {showBrand && (
