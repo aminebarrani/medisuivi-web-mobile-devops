@@ -75,6 +75,158 @@ const getPasswordStrengthLabel = (score: number): string => {
   }
 };
 
+const validateNewPassword = (form: { newPwd: string; confirm: string }): string | null => {
+  if (form.newPwd.length < 8) {
+    return 'Le nouveau mot de passe doit comporter au moins 8 caractères.';
+  }
+  if (!/[A-Z]/.test(form.newPwd)) {
+    return 'Le nouveau mot de passe doit contenir au moins une lettre majuscule.';
+  }
+  if (!/\d/.test(form.newPwd)) {
+    return 'Le nouveau mot de passe doit contenir au moins un chiffre.';
+  }
+  if (form.newPwd !== form.confirm) {
+    return 'Les mots de passe ne correspondent pas.';
+  }
+  return null;
+};
+
+interface NewPatientFormState {
+  username: string;
+  email: string;
+  password: string;
+  nom: string;
+  prenom: string;
+  dateNaissance: string;
+  sexe: Sexe;
+  niveauRisque: NiveauRisque;
+}
+
+const EMPTY_PATIENT_FORM: NewPatientFormState = {
+  username: '',
+  email: '',
+  password: '',
+  nom: '',
+  prenom: '',
+  dateNaissance: '1990-05-15',
+  sexe: 'HOMME',
+  niveauRisque: 'FAIBLE',
+};
+
+const getErrorMessage = (err: unknown): string => {
+  const axiosError = err as { response?: { data?: { message?: string } } };
+  return axiosError?.response?.data?.message || '';
+};
+
+const registerOrReusePatientUser = async (form: NewPatientFormState): Promise<number> => {
+  try {
+    const regUser = await authService.register({
+      username: form.username,
+      email: form.email,
+      password: form.password,
+      firstName: form.prenom,
+      lastName: form.nom,
+      role: 'PATIENT',
+      active: true,
+    });
+    return regUser.id;
+  } catch (regErr: unknown) {
+    const regMsg = getErrorMessage(regErr);
+    if (!regMsg.includes('already taken') && !regMsg.includes('already registered')) {
+      throw regErr;
+    }
+    // Username or email already taken in user-service: try to reuse the existing user
+    const allUsers = await authService.getAllUsers();
+    const existing = allUsers.find(
+      (u) =>
+        u.username.toLowerCase() === form.username.toLowerCase() ||
+        u.email.toLowerCase() === form.email.toLowerCase()
+    );
+    if (!existing) {
+      throw regErr;
+    }
+    return existing.id;
+  }
+};
+
+const createOrReassignPatient = async (
+  targetUserId: number,
+  currentMedId: number,
+  form: NewPatientFormState
+): Promise<void> => {
+  try {
+    await patientService.createPatient({
+      userId: targetUserId,
+      medecinId: currentMedId,
+      dateNaissance: form.dateNaissance,
+      sexe: form.sexe,
+      niveauRisque: form.niveauRisque,
+    });
+  } catch (patErr: unknown) {
+    const patMsg = getErrorMessage(patErr);
+    if (!patMsg.toLowerCase().includes('already exists')) {
+      throw patErr;
+    }
+    console.warn('Patient profile already existed for userId:', targetUserId);
+    try {
+      const existing = await patientService.getPatientByUserId(targetUserId);
+      if (existing && existing.medecinId !== currentMedId) {
+        await patientService.updatePatient(existing.id, {
+          userId: targetUserId,
+          medecinId: currentMedId,
+          dateNaissance: existing.dateNaissance || form.dateNaissance,
+          sexe: existing.sexe || form.sexe,
+          niveauRisque: existing.niveauRisque || form.niveauRisque,
+        });
+      }
+    } catch (reassignErr) {
+      console.warn('Could not reassign patient to current doctor:', reassignErr);
+    }
+  }
+};
+
+const extractPatientCreationError = (err: unknown): string => {
+  const axiosErr = err as {
+    response?: { data?: { message?: string; errors?: Record<string, string> } };
+    message?: string;
+  };
+  return (
+    axiosErr?.response?.data?.message ||
+    (axiosErr?.response?.data?.errors
+      ? Object.values(axiosErr.response.data.errors).join(', ')
+      : '') ||
+    axiosErr?.message ||
+    'Erreur inconnue lors de la création du patient.'
+  );
+};
+
+const resolvePatients = async (
+  pts: PromiseSettledResult<PatientDTO[]>,
+  activeMedecinId: number
+): Promise<PatientDTO[]> => {
+  if (pts.status === 'fulfilled') return pts.value;
+  try {
+    const allPts = await patientService.getAllPatients();
+    return allPts.filter((p) => p.medecinId === activeMedecinId);
+  } catch {
+    return [];
+  }
+};
+
+const enrichPatients = (
+  loadedPatients: PatientDTO[],
+  userMap: Map<number, UserDTO>
+): PatientDTO[] =>
+  loadedPatients.map((p) => {
+    const u = userMap.get(p.userId);
+    return {
+      ...p,
+      nom: u ? u.lastName : p.nom || '',
+      prenom: u ? u.firstName : p.prenom || '',
+      email: u ? u.email : p.email || '',
+    };
+  });
+
 const DashboardPage: React.FC = () => {
   const { user, logout, updateUser } = useAuth();
   const navigate = useNavigate();
@@ -111,16 +263,7 @@ const DashboardPage: React.FC = () => {
   const [predictionResult, setPredictionResult] = useState<{ gravite: string; probabilities: Record<string, number> } | null>(null);
 
   // Forms
-  const [newPatientForm, setNewPatientForm] = useState({
-    username: '',
-    email: '',
-    password: '',
-    nom: '',
-    prenom: '',
-    dateNaissance: '1990-05-15',
-    sexe: 'HOMME' as Sexe,
-    niveauRisque: 'FAIBLE' as NiveauRisque,
-  });
+  const [newPatientForm, setNewPatientForm] = useState<NewPatientFormState>({ ...EMPTY_PATIENT_FORM });
 
   const [newMaladieForm, setNewMaladieForm] = useState({
     nom: '',
@@ -285,29 +428,8 @@ const DashboardPage: React.FC = () => {
       const usersList = usrs.status === 'fulfilled' ? usrs.value : [];
       const userMap = new Map(usersList.map((u) => [u.id, u]));
 
-      let loadedPatients: PatientDTO[] = [];
-      if (pts.status === 'fulfilled') {
-        loadedPatients = pts.value;
-      } else {
-        try {
-          const allPts = await patientService.getAllPatients();
-          loadedPatients = allPts.filter((p) => p.medecinId === activeMedecinId);
-        } catch {
-          loadedPatients = [];
-        }
-      }
-
-      const enrichedPatients = loadedPatients.map((p) => {
-        const u = userMap.get(p.userId);
-        return {
-          ...p,
-          nom: u ? u.lastName : (p.nom || ''),
-          prenom: u ? u.firstName : (p.prenom || ''),
-          email: u ? u.email : (p.email || ''),
-        };
-      });
-
-      setPatients(enrichedPatients);
+      const loadedPatients = await resolvePatients(pts, activeMedecinId);
+      setPatients(enrichPatients(loadedPatients, userMap));
       setMaladies(mals.status === 'fulfilled' ? mals.value : []);
       setAlertes(alrs.status === 'fulfilled' ? alrs.value : []);
       setMesures(msrs.status === 'fulfilled' ? msrs.value : []);
@@ -383,20 +505,9 @@ const DashboardPage: React.FC = () => {
     setPasswordSuccess('');
     setPasswordError('');
 
-    if (passwordForm.newPwd.length < 8) {
-      setPasswordError('Le nouveau mot de passe doit comporter au moins 8 caractères.');
-      return;
-    }
-    if (!/[A-Z]/.test(passwordForm.newPwd)) {
-      setPasswordError('Le nouveau mot de passe doit contenir au moins une lettre majuscule.');
-      return;
-    }
-    if (!/\d/.test(passwordForm.newPwd)) {
-      setPasswordError('Le nouveau mot de passe doit contenir au moins un chiffre.');
-      return;
-    }
-    if (passwordForm.newPwd !== passwordForm.confirm) {
-      setPasswordError('Les mots de passe ne correspondent pas.');
+    const validationError = validateNewPassword(passwordForm);
+    if (validationError) {
+      setPasswordError(validationError);
       return;
     }
 
@@ -417,44 +528,7 @@ const DashboardPage: React.FC = () => {
   const handleAddPatient = async (e: React.SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     try {
-      let targetUserId: number | null = null;
-
-      try {
-        const regUser = await authService.register({
-          username: newPatientForm.username,
-          email: newPatientForm.email,
-          password: newPatientForm.password,
-          firstName: newPatientForm.prenom,
-          lastName: newPatientForm.nom,
-          role: 'PATIENT',
-          active: true,
-        });
-        targetUserId = regUser.id;
-      } catch (regErr: unknown) {
-        const axiosRegErr = regErr as { response?: { data?: { message?: string } } };
-        const regMsg = axiosRegErr?.response?.data?.message || '';
-
-        // If username or email is already taken in user-service, check if we can reuse the existing user
-        if (regMsg.includes('already taken') || regMsg.includes('already registered')) {
-          const allUsers = await authService.getAllUsers();
-          const existing = allUsers.find(
-            (u) =>
-              u.username.toLowerCase() === newPatientForm.username.toLowerCase() ||
-              u.email.toLowerCase() === newPatientForm.email.toLowerCase()
-          );
-          if (existing) {
-            targetUserId = existing.id;
-          } else {
-            throw regErr;
-          }
-        } else {
-          throw regErr;
-        }
-      }
-
-      if (!targetUserId) {
-        throw new Error("Impossible de récupérer l'identifiant utilisateur.");
-      }
+      const targetUserId = await registerOrReusePatientUser(newPatientForm);
 
       let currentMedId = medecinId || medecinIdRef.current;
       if (!currentMedId) {
@@ -467,69 +541,14 @@ const DashboardPage: React.FC = () => {
         throw new Error('Profil médecin introuvable. Reconnectez-vous et réessayez.');
       }
 
-      try {
-        await patientService.createPatient({
-          userId: targetUserId,
-          medecinId: currentMedId,
-          dateNaissance: newPatientForm.dateNaissance,
-          sexe: newPatientForm.sexe,
-          niveauRisque: newPatientForm.niveauRisque,
-        });
-      } catch (patErr: unknown) {
-        const axiosPatErr = patErr as { response?: { data?: { message?: string } } };
-        const patMsg = axiosPatErr?.response?.data?.message || '';
-        if (patMsg.toLowerCase().includes('already exists')) {
-          console.warn('Patient profile already existed for userId:', targetUserId);
-          try {
-            const existing = await patientService.getPatientByUserId(targetUserId);
-            if (existing && existing.medecinId !== currentMedId) {
-              await patientService.updatePatient(existing.id, {
-                userId: targetUserId,
-                medecinId: currentMedId,
-                dateNaissance: existing.dateNaissance || newPatientForm.dateNaissance,
-                sexe: existing.sexe || newPatientForm.sexe,
-                niveauRisque: existing.niveauRisque || newPatientForm.niveauRisque,
-              });
-            }
-          } catch (reassignErr) {
-            console.warn('Could not reassign patient to current doctor:', reassignErr);
-          }
-        } else {
-          throw patErr;
-        }
-      }
+      await createOrReassignPatient(targetUserId, currentMedId, newPatientForm);
 
       setShowAddPatientModal(false);
-      setNewPatientForm({
-        username: '',
-        email: '',
-        password: '',
-        nom: '',
-        prenom: '',
-        dateNaissance: '1990-05-15',
-        sexe: 'HOMME',
-        niveauRisque: 'FAIBLE',
-      });
+      setNewPatientForm({ ...EMPTY_PATIENT_FORM });
       loadDashboardData(false);
     } catch (err: unknown) {
       console.error('Failed to create patient:', err);
-      const axiosErr = err as {
-        response?: {
-          data?: {
-            message?: string;
-            errors?: Record<string, string>;
-          };
-        };
-        message?: string;
-      };
-      const detailMsg =
-        axiosErr?.response?.data?.message ||
-        (axiosErr?.response?.data?.errors
-          ? Object.values(axiosErr.response.data.errors).join(', ')
-          : '') ||
-        axiosErr?.message ||
-        'Erreur inconnue lors de la création du patient.';
-      alert(`Erreur : ${detailMsg}`);
+      alert(`Erreur : ${extractPatientCreationError(err)}`);
     }
   };
 
@@ -687,7 +706,7 @@ const DashboardPage: React.FC = () => {
   };
 
   return (
-    <div className="dash-container">
+    <div className="dash-container dashboard-page">
       {/* Top Navbar */}
       <header className="dash-header">
         <div className="dash-header-inner">

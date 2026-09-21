@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 import authService from '../services/authService';
 import type { UserDTO, LoginRequest, RegisterRequest } from '../services/authService';
 
@@ -39,8 +39,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   }, []);
 
+  const value = useMemo(
+    () => ({ user, isAuthenticated: !!user, login, register, logout, updateUser }),
+    [user, login, register, logout, updateUser]
+  );
+
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated: !!user, login, register, logout, updateUser }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

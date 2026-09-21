@@ -38,4 +38,45 @@ describe('suiviService Unit Tests', () => {
     expect(axiosInstance.patch).toHaveBeenCalledWith('/alertes/100/traiter');
     expect(result.traitee).toBe(true);
   });
+
+  it('covers mesure endpoints', async () => {
+    (axiosInstance.get as any).mockResolvedValueOnce({ data: [{ id: 1 }] });
+    expect((await suiviService.getMesuresByMedecin(3)).length).toBe(1);
+    expect(axiosInstance.get).toHaveBeenCalledWith('/mesures/medecin/3');
+
+    (axiosInstance.get as any).mockResolvedValueOnce({ data: [{ id: 2 }] });
+    expect((await suiviService.getMesuresByPatient(9))[0].id).toBe(2);
+    expect(axiosInstance.get).toHaveBeenCalledWith('/mesures/patient/9');
+
+    (axiosInstance.post as any).mockResolvedValueOnce({ data: { id: 3 } });
+    const mesure = { patientId: 9, typeMesure: 'TENSION' as const, valeur: 12, unite: 'cmHg', source: 'MEDECIN' as const };
+    expect((await suiviService.createMesure(mesure)).id).toBe(3);
+    expect(axiosInstance.post).toHaveBeenCalledWith('/mesures', mesure);
+  });
+
+  it('covers symptome endpoints', async () => {
+    (axiosInstance.get as any).mockResolvedValueOnce({ data: [{ id: 1 }] });
+    expect((await suiviService.getSymptomesByMedecin(3)).length).toBe(1);
+    expect(axiosInstance.get).toHaveBeenCalledWith('/symptomes/medecin/3');
+
+    (axiosInstance.get as any).mockResolvedValueOnce({ data: [{ id: 2 }] });
+    expect((await suiviService.getSymptomesByPatient(9))[0].id).toBe(2);
+    expect(axiosInstance.get).toHaveBeenCalledWith('/symptomes/patient/9');
+
+    (axiosInstance.post as any).mockResolvedValueOnce({ data: { id: 4 } });
+    const symptome = { patientId: 9, description: 'douleur', gravite: 'GRAVE' as const };
+    expect((await suiviService.createSymptome(symptome)).id).toBe(4);
+    expect(axiosInstance.post).toHaveBeenCalledWith('/symptomes', symptome);
+  });
+
+  it('covers remaining alerte endpoints', async () => {
+    (axiosInstance.get as any).mockResolvedValueOnce({ data: [{ id: 5 }] });
+    expect((await suiviService.getAlertesByPatient(9))[0].id).toBe(5);
+    expect(axiosInstance.get).toHaveBeenCalledWith('/alertes/patient/9');
+
+    (axiosInstance.post as any).mockResolvedValueOnce({ data: { id: 6 } });
+    const alerte = { patientId: 9, niveauRisque: 'ELEVE' as const, source: 'MESURE' as const, description: 'd' };
+    expect((await suiviService.createAlerte(alerte)).id).toBe(6);
+    expect(axiosInstance.post).toHaveBeenCalledWith('/alertes', alerte);
+  });
 });

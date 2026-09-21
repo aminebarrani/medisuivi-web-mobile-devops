@@ -56,4 +56,42 @@ describe('AuthContext Unit Tests', () => {
     expect(result.current.user).toBeNull();
     expect(result.current.isAuthenticated).toBe(false);
   });
+
+  it('should register a new user', async () => {
+    (authService.getUser as any).mockReturnValueOnce(null);
+    (authService.register as any).mockResolvedValueOnce({ id: 2 });
+
+    const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider });
+
+    await act(async () => {
+      await result.current.register({
+        username: 'u', email: 'e', password: 'p', firstName: 'F', lastName: 'L', role: 'PATIENT', active: true,
+      });
+    });
+
+    expect(authService.register).toHaveBeenCalled();
+  });
+
+  it('updateUser merges data and persists; no-op when user is null', () => {
+    (authService.getUser as any).mockReturnValueOnce(null);
+    const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider });
+
+    act(() => {
+      result.current.updateUser({ firstName: 'Ignored' });
+    });
+    expect(result.current.user).toBeNull();
+
+    const mockUser = { id: 1, username: 'u', email: 'e', role: 'MEDECIN', active: true, firstName: 'F', lastName: 'L' };
+    (authService.getUser as any).mockReturnValueOnce(mockUser);
+    const { result: r2 } = renderHook(() => useAuth(), { wrapper: AuthProvider });
+    act(() => {
+      r2.current.updateUser({ firstName: 'New' });
+    });
+    expect(r2.current.user?.firstName).toBe('New');
+    expect(JSON.parse(localStorage.getItem('user')!).firstName).toBe('New');
+  });
+
+  it('useAuth throws outside provider', () => {
+    expect(() => renderHook(() => useAuth())).toThrow('useAuth must be used within AuthProvider');
+  });
 });
