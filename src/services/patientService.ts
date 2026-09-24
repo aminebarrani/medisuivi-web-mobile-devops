@@ -52,8 +52,40 @@ const patientService = {
     }
   },
 
-  async predictRisk(patientId: number): Promise<{ gravite: string; niveauRisque?: NiveauRisque; probabilities?: Record<string, number> }> {
-    const res = await api.post<{ gravite: string; niveauRisque?: NiveauRisque; probabilities?: Record<string, number> }>(
+  async predictRisk(patientId: number): Promise<{
+    gravite: string;
+    niveauRisque?: NiveauRisque;
+    probabilities?: Record<string, number>;
+    explanations?: string[];
+    agent?: {
+      synthese_titre?: string;
+      niveau_alerte?: string;
+      source?: string;
+      explication_patient?: {
+        resume?: string;
+        facteurs_declencheurs?: string[];
+        conseils_immediats?: string[];
+        message_rassurant?: string;
+      };
+    };
+  }> {
+    const res = await api.post<{
+      gravite: string;
+      niveauRisque?: NiveauRisque;
+      probabilities?: Record<string, number>;
+      explanations?: string[];
+      agent?: {
+        synthese_titre?: string;
+        niveau_alerte?: string;
+        source?: string;
+        explication_patient?: {
+          resume?: string;
+          facteurs_declencheurs?: string[];
+          conseils_immediats?: string[];
+          message_rassurant?: string;
+        };
+      };
+    }>(
       `/patients/${patientId}/predict-risk`,
       {}
     );

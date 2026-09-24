@@ -31,6 +31,8 @@ export const DashboardScreen: React.FC = () => {
   const [doctor, setDoctor] = useState<DoctorDetails | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
+  const [analyzing, setAnalyzing] = useState<boolean>(false);
+  const [aiResponse, setAiResponse] = useState<Awaited<ReturnType<typeof patientService.predictRisk>> | null>(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -69,6 +71,20 @@ export const DashboardScreen: React.FC = () => {
   const onRefresh = () => {
     setRefreshing(true);
     loadData();
+  };
+
+  const handleAnalyze = async () => {
+    if (!patient?.id || analyzing) return;
+    setAnalyzing(true);
+    try {
+      const res = await patientService.predictRisk(patient.id);
+      setAiResponse(res);
+      await refreshPatient();
+    } catch (err) {
+      console.warn('Erreur analyse IA:', err);
+    } finally {
+      setAnalyzing(false);
+    }
   };
 
   const patientName = user?.firstName
@@ -125,14 +141,62 @@ export const DashboardScreen: React.FC = () => {
           onPress={() => navigation.navigate('Alert')}
           activeOpacity={0.85}
         >
-          <Ionicons name="warning" size={24} color="#F59E0B" style={{ marginRight: 10 }} />
+          <Ionicons name="warning" size={24} color="#DC2626" style={{ marginRight: 10 }} />
           <View style={{ flex: 1 }}>
             <Text style={styles.alertBannerTitle}>Alerte médicale active ({alertes.length})</Text>
             <Text style={styles.alertBannerText} numberOfLines={2}>{alertes[0].description}</Text>
           </View>
-          <Ionicons name="chevron-forward" size={18} color="#F59E0B" />
+          <Ionicons name="chevron-forward" size={18} color="#DC2626" />
         </TouchableOpacity>
       )}
+
+      {/* MediSuivi AI — Analyse XAI */}
+      <View style={styles.aiSection}>
+        <TouchableOpacity
+          style={styles.aiAnalyzeBtn}
+          onPress={handleAnalyze}
+          disabled={analyzing}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="sparkles" size={20} color="#7C3AED" style={{ marginRight: 8 }} />
+          <Text style={styles.aiAnalyzeText}>
+            {analyzing
+              ? 'Analyse en cours...'
+              : aiResponse
+                ? "Relancer l'analyse IA"
+                : 'Analyser mes constantes (IA)'}
+          </Text>
+        </TouchableOpacity>
+
+        {aiResponse?.agent?.explication_patient && (
+          <Card style={styles.aiExplanationCard}>
+            <View style={styles.aiHeader}>
+              <Ionicons name="sparkles" size={20} color="#7C3AED" />
+              <Text style={styles.aiTitle}>
+                {aiResponse.agent.synthese_titre || 'Analyse Intelligente de vos Constantes'}
+              </Text>
+            </View>
+            <Text style={styles.aiSummary}>{aiResponse.agent.explication_patient.resume}</Text>
+
+            <Text style={styles.aiSectionTitle}>Pourquoi ce niveau de risque ?</Text>
+            {(aiResponse.agent.explication_patient.facteurs_declencheurs || []).map((facteur, idx) => (
+              <View key={idx} style={styles.bulletRow}>
+                <Ionicons name="trending-up" size={16} color="#DC2626" />
+                <Text style={styles.bulletText}>{facteur}</Text>
+              </View>
+            ))}
+
+            <View style={styles.tipsBox}>
+              <Text style={styles.tipsTitle}>Conseils recommandés :</Text>
+              {(aiResponse.agent.explication_patient.conseils_immediats || []).map((conseil, idx) => (
+                <Text key={idx} style={styles.tipItem}>• {conseil}</Text>
+              ))}
+            </View>
+
+            <Text style={styles.aiReassure}>{aiResponse.agent.explication_patient.message_rassurant}</Text>
+          </Card>
+        )}
+      </View>
 
       {/* Quick Action Buttons: Add Measure & Send Alert */}
       <View style={styles.actionsContainer}>
@@ -247,9 +311,9 @@ const styles = StyleSheet.create({
   alertBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+    backgroundColor: 'rgba(220, 38, 38, 0.08)',
     borderWidth: 1,
-    borderColor: 'rgba(245, 158, 11, 0.35)',
+    borderColor: 'rgba(220, 38, 38, 0.4)',
     borderRadius: 14,
     padding: 14,
     marginBottom: 16,
@@ -257,12 +321,96 @@ const styles = StyleSheet.create({
   alertBannerTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#FBBF24',
+    color: '#DC2626',
   },
   alertBannerText: {
     fontSize: 13,
-    color: '#FCD34D',
+    color: '#7F1D1D',
     marginTop: 2,
+  },
+  aiSection: {
+    marginBottom: 16,
+  },
+  aiAnalyzeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(124, 58, 237, 0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(124, 58, 237, 0.35)',
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  aiAnalyzeText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#7C3AED',
+  },
+  aiExplanationCard: {
+    marginTop: 12,
+    borderColor: 'rgba(124, 58, 237, 0.25)',
+  },
+  aiHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  aiTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#7C3AED',
+    marginLeft: 8,
+    flex: 1,
+  },
+  aiSummary: {
+    fontSize: 14,
+    color: '#2C2A26',
+    lineHeight: 20,
+    marginBottom: 12,
+  },
+  aiSectionTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#6F6B64',
+    marginBottom: 6,
+    textTransform: 'uppercase',
+  },
+  bulletRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 6,
+  },
+  bulletText: {
+    fontSize: 13,
+    color: '#2C2A26',
+    marginLeft: 8,
+    flex: 1,
+    lineHeight: 18,
+  },
+  tipsBox: {
+    backgroundColor: 'rgba(61, 139, 122, 0.08)',
+    borderRadius: 10,
+    padding: 10,
+    marginTop: 8,
+  },
+  tipsTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#3D8B7A',
+    marginBottom: 4,
+  },
+  tipItem: {
+    fontSize: 13,
+    color: '#2C2A26',
+    lineHeight: 19,
+  },
+  aiReassure: {
+    fontSize: 12,
+    color: '#6F6B64',
+    fontStyle: 'italic',
+    marginTop: 10,
+    lineHeight: 17,
   },
   actionsContainer: {
     marginBottom: 20,
