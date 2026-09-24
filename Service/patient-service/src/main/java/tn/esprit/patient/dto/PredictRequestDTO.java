@@ -33,4 +33,7 @@ public class PredictRequestDTO {
 
     @JsonProperty("nb_symptomes_recents_7j")
     private Double nbSymptomesRecents7j;
+
+    @JsonProperty("type_mesure")
+    private String typeMesure;
 }

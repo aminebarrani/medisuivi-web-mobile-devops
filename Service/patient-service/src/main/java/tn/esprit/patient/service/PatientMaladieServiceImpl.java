@@ -5,7 +5,12 @@ import org.springframework.transaction.annotation.Transactional;
 import tn.esprit.patient.dto.PatientMaladieCreationDTO;
 import tn.esprit.patient.dto.PatientMaladieDTO;
 import tn.esprit.patient.exception.ResourceNotFoundException;
+import tn.esprit.patient.model.Alerte;
+import tn.esprit.patient.model.Maladie;
+import tn.esprit.patient.model.NiveauRisque;
 import tn.esprit.patient.model.PatientMaladie;
+import tn.esprit.patient.model.SourceAlerte;
+import tn.esprit.patient.repository.AlerteRepository;
 import tn.esprit.patient.repository.MaladieRepository;
 import tn.esprit.patient.repository.PatientMaladieRepository;
 import tn.esprit.patient.repository.PatientRepository;
@@ -19,13 +24,16 @@ public class PatientMaladieServiceImpl implements PatientMaladieService {
     private final PatientMaladieRepository patientMaladieRepository;
     private final PatientRepository patientRepository;
     private final MaladieRepository maladieRepository;
+    private final AlerteRepository alerteRepository;
 
     public PatientMaladieServiceImpl(PatientMaladieRepository patientMaladieRepository,
                                      PatientRepository patientRepository,
-                                     MaladieRepository maladieRepository) {
+                                     MaladieRepository maladieRepository,
+                                     AlerteRepository alerteRepository) {
         this.patientMaladieRepository = patientMaladieRepository;
         this.patientRepository = patientRepository;
         this.maladieRepository = maladieRepository;
+        this.alerteRepository = alerteRepository;
     }
 
     @Override
@@ -33,9 +41,8 @@ public class PatientMaladieServiceImpl implements PatientMaladieService {
         if (!patientRepository.existsById(dto.getPatientId())) {
             throw new ResourceNotFoundException("Patient not found with id: " + dto.getPatientId());
         }
-        if (!maladieRepository.existsById(dto.getMaladieId())) {
-            throw new ResourceNotFoundException("Maladie not found with id: " + dto.getMaladieId());
-        }
+        Maladie maladie = maladieRepository.findById(dto.getMaladieId())
+                .orElseThrow(() -> new ResourceNotFoundException("Maladie not found with id: " + dto.getMaladieId()));
         if (patientMaladieRepository.existsByPatientIdAndMaladieId(dto.getPatientId(), dto.getMaladieId())) {
             throw new IllegalArgumentException("This patient already has this maladie assigned");
         }
@@ -46,7 +53,20 @@ public class PatientMaladieServiceImpl implements PatientMaladieService {
                 .dateDiagnostic(dto.getDateDiagnostic())
                 .build();
 
-        return mapToDTO(patientMaladieRepository.save(patientMaladie));
+        PatientMaladieDTO saved = mapToDTO(patientMaladieRepository.save(patientMaladie));
+        createDiagnosticAlerte(dto.getPatientId(), maladie.getNom());
+        return saved;
+    }
+
+    private void createDiagnosticAlerte(Long patientId, String maladieNom) {
+        Alerte alerte = Alerte.builder()
+                .patientId(patientId)
+                .niveauRisque(NiveauRisque.MODERE)
+                .source(SourceAlerte.AUTOMATIQUE)
+                .description("Nouveau diagnostic attribué par votre médecin : " + maladieNom)
+                .traitee(false)
+                .build();
+        alerteRepository.save(alerte);
     }
 
     @Override
