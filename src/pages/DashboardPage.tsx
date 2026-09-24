@@ -260,7 +260,7 @@ const DashboardPage: React.FC = () => {
   const [showAddSymptomeModal, setShowAddSymptomeModal] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState<PatientDTO | null>(null);
   const [predictingRisk, setPredictingRisk] = useState(false);
-  const [predictionResult, setPredictionResult] = useState<{ gravite: string; probabilities: Record<string, number> } | null>(null);
+  const [predictionResult, setPredictionResult] = useState<{ gravite: string; probabilities: Record<string, number>; explanations?: string[]; agent?: { synthese_titre?: string; niveau_alerte?: string; source?: string; synthese_clinique_medecin?: { conclusion?: string; drivers_statistiques?: string } } } | null>(null);
 
   // Forms
   const [newPatientForm, setNewPatientForm] = useState<NewPatientFormState>({ ...EMPTY_PATIENT_FORM });

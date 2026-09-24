@@ -101,8 +101,8 @@ const patientService = {
     await axiosInstance.delete(`/patients/${patientId}`);
   },
 
-  async predictRisk(patientId: number): Promise<{ gravite: string; probabilities: Record<string, number> }> {
-    const res = await axiosInstance.post<{ gravite: string; probabilities: Record<string, number> }>(`/patients/${patientId}/predict-risk`, {});
+  async predictRisk(patientId: number): Promise<{ gravite: string; probabilities: Record<string, number>; explanations?: string[]; agent?: { synthese_titre?: string; niveau_alerte?: string; source?: string; synthese_clinique_medecin?: { conclusion?: string; drivers_statistiques?: string } } }> {
+    const res = await axiosInstance.post<{ gravite: string; probabilities: Record<string, number>; explanations?: string[]; agent?: { synthese_titre?: string; niveau_alerte?: string; source?: string; synthese_clinique_medecin?: { conclusion?: string; drivers_statistiques?: string } } }>(`/patients/${patientId}/predict-risk`, {});
     return res.data;
   },
 

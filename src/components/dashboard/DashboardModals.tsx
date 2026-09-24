@@ -97,7 +97,15 @@ export interface DashboardModalsProps {
   selectedPatient: PatientDTO | null;
   setSelectedPatient: (p: PatientDTO | null) => void;
   predictingRisk: boolean;
-  predictionResult: { gravite: string; probabilities: Record<string, number> } | null;
+  predictionResult: {
+    gravite: string;
+    probabilities: Record<string, number>;
+    explanations?: string[];
+    agent?: {
+      synthese_titre?: string;
+      synthese_clinique_medecin?: { conclusion?: string; drivers_statistiques?: string };
+    };
+  } | null;
   handlePredictRisk: (patientId: number) => Promise<void>;
   patients: PatientDTO[];
   maladies: MaladieDTO[];
@@ -683,6 +691,38 @@ export const DashboardModals: React.FC<DashboardModalsProps> = ({
                         <span className="font-bold text-teal-400 ml-1">{(val * 100).toFixed(1)}%</span>
                       </div>
                     ))}
+                  </div>
+                )}
+
+                {predictionResult.explanations && predictionResult.explanations.length > 0 && (
+                  <div className="mt-4">
+                    <span className="text-xs font-semibold text-slate-300 uppercase tracking-wide">
+                      Facteurs SHAP dominants
+                    </span>
+                    <ul className="mt-2 space-y-1.5">
+                      {predictionResult.explanations.map((exp, i) => (
+                        <li key={i} className="flex items-start gap-2 text-xs text-slate-300">
+                          <span className="text-amber-400 mt-0.5">▲</span>
+                          <span>{exp}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {predictionResult.agent?.synthese_clinique_medecin?.conclusion && (
+                  <div className="mt-4 bg-slate-900/60 p-3 rounded border border-white/5">
+                    <span className="text-xs font-semibold text-teal-300 uppercase tracking-wide">
+                      Synthèse clinique (IA)
+                    </span>
+                    <p className="mt-1.5 text-xs text-slate-200 leading-relaxed">
+                      {predictionResult.agent.synthese_clinique_medecin.conclusion}
+                    </p>
+                    {predictionResult.agent.synthese_clinique_medecin.drivers_statistiques && (
+                      <p className="mt-1.5 text-[11px] text-slate-400 italic">
+                        {predictionResult.agent.synthese_clinique_medecin.drivers_statistiques}
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
