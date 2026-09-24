@@ -1,4 +1,4 @@
-﻿"""
+"""
 Basic tests for the MediSuivi Prediction API.
 """
 from fastapi.testclient import TestClient
@@ -85,3 +85,33 @@ def test_predict_unknown_disease_falls_back_to_diabete():
     response = client.post("/predict", json=_base_payload(disease="maladie_inconnue"))
     assert response.status_code == 200
     assert response.json()["gravite"] in ("FAIBLE", "MODERE", "GRAVE")
+
+
+def test_predict_poids_overweight_diagnosis():
+    payload = {
+        "age": 45,
+        "sexe": "HOMME",
+        "disease": "DIABETE",
+        "jours_depuis_diagnostic": 100,
+        "valeur_mesure_proche": 150.0,
+        "deviation_score": 0.50,
+        "rolling_mean_14j": 150.0,
+        "rolling_std_14j": 0.0,
+        "trend_slope_14j": 0.0,
+        "nb_symptomes_recents_7j": 0,
+        "type_mesure": "POIDS",
+    }
+    response = client.post("/predict", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert "agent" in data
+    agent = data["agent"]
+    assert "Obésité" in agent["synthese_titre"] or "Surpoids" in agent["synthese_titre"]
+    resume = agent["explication_patient"]["resume"]
+    assert "150" in resume
+    assert "obésité" in resume.lower() or "surpoids" in resume.lower()
+    tips = agent["explication_patient"]["conseils_immediats"]
+    assert any("poids" in t.lower() or "médecin" in t.lower() or "nutrition" in t.lower() for t in tips)
+    triggers = agent["explication_patient"]["facteurs_declencheurs"]
+    assert any("150" in t and ("obésité" in t.lower() or "surpoids" in t.lower()) for t in triggers)
+
